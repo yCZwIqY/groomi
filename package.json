@@ -63,7 +63,7 @@
     "directories": {
       "output": "release"
     },
-    "artifactName": "그루미-${version}-설치파일.${ext}",
+    "artifactName": "groomi-${version}.${ext}",
     "files": [
       "assets/app-logo.ico",
       "assets/app-logo.png",

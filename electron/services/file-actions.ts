@@ -9,7 +9,16 @@ import type { WorkspaceServiceContext } from './workspace-service-context.js';
 
 export function createFileActions(context: WorkspaceServiceContext) {
   async function removeFile(targetPath: string) {
-    return deleteFile(toFileSystemPath(targetPath));
+    const rootWorkspacePath = await context.getCurrentWorkspacePath();
+    const imagesDirectoryPath = getWorkspaceImagesDirectoryPath(normalizePath(rootWorkspacePath));
+    const filePath = normalizePath(toFileSystemPath(targetPath));
+    const relativePath = path.relative(imagesDirectoryPath, filePath);
+
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error('이미지 폴더 밖의 파일은 삭제할 수 없습니다.');
+    }
+
+    return deleteFile(filePath);
   }
 
   async function saveImage(workflowPath: string, fileName: string, buffer: number[]) {
@@ -22,6 +31,15 @@ export function createFileActions(context: WorkspaceServiceContext) {
     await ensureDirectory(imagesDirectoryPath);
 
     const safeFileName = path.basename(fileName);
+    const allowedExtensions = new Set(['.gif', '.jpeg', '.jpg', '.png', '.webp']);
+    if (!allowedExtensions.has(path.extname(safeFileName).toLowerCase())) {
+      throw new Error('지원하지 않는 이미지 형식입니다.');
+    }
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      throw new Error('이미지는 10MB 이하여야 합니다.');
+    }
+
     const targetPath = path.join(imagesDirectoryPath, `${crypto.randomUUID()}-${safeFileName}`);
 
     await fs.writeFile(targetPath, Buffer.from(buffer));

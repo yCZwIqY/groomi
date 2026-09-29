@@ -21,6 +21,7 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
   const commentStoreActions = createCommentStoreActions(context);
 
   return {
+    assertInsideWorkspace: context.assertInsideWorkspace,
     addRecentVisit: context.addRecentVisit,
     createDocument: documentActions.createDocument,
     createWorkspace: workspaceActions.createWorkspace,

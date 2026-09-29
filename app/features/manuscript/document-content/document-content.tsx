@@ -1,5 +1,5 @@
 import DnEditor from '~/components/editor/dn-editor';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DnSwitch from '~/components/common/switch/dn-switch';
 import type { Option } from '~/components';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -21,6 +21,7 @@ type DocumentTextStatus = {
 };
 
 type ShowType = 'DRAFT' | 'MANUSCRIPT' | 'SPLIT';
+const AUTOSAVE_DELAY_MS = 1_000;
 const ShowTypeOptions: Option<ShowType>[] = [
   {
     value: 'DRAFT',
@@ -51,7 +52,12 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   } = useDocumentContent();
   const [showType, setShowType] = useState<ShowType>('SPLIT');
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
+  const initializedDocumentPath = useRef<string | null>(null);
+  const latestContent = useRef({ draft, manuscript });
+  latestContent.current = { draft, manuscript };
 
   const startTask = useBackgroundTasks((state) => state.startTask);
   const finishTask = useBackgroundTasks((state) => state.finishTask);
@@ -63,11 +69,79 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
 
   useEffect(() => {
     resetContent(workspaceData);
+    initializedDocumentPath.current = workspaceData.path;
+    setDirty(false);
+    setSaveError(false);
 
     return () => {
       resetContent();
     };
-  }, [workspaceData?.document?.manuscript?.content, workspaceData?.document?.draft?.content]);
+  }, [
+    workspaceData.path,
+    workspaceData?.document?.manuscript?.content,
+    workspaceData?.document?.draft?.content,
+  ]);
+
+  useEffect(() => {
+    if (initializedDocumentPath.current !== workspaceData.path) {
+      return;
+    }
+
+    const storedDraft = workspaceData.document?.draft?.content ?? '';
+    const storedManuscript = workspaceData.document?.manuscript?.content ?? '';
+    setDirty(draft !== storedDraft || manuscript !== storedManuscript);
+  }, [
+    draft,
+    manuscript,
+    workspaceData.path,
+    workspaceData.document?.draft?.content,
+    workspaceData.document?.manuscript?.content,
+  ]);
+
+  useEffect(() => {
+    if (!dirty || saving || isBusy || saveError) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const savingContent = { draft, manuscript };
+      setSaving(true);
+      setSaveError(false);
+      void handleUpdate(workspaceData)
+        .then((updatedWorkspace) => {
+          const contentIsStillCurrent =
+            latestContent.current.draft === savingContent.draft &&
+            latestContent.current.manuscript === savingContent.manuscript;
+
+          if (updatedWorkspace && contentIsStillCurrent) {
+            onUpdated?.(updatedWorkspace);
+            setDirty(false);
+          }
+        })
+        .catch(() => {
+          setSaveError(true);
+        })
+        .finally(() => {
+          setSaving(false);
+        });
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [dirty, draft, manuscript, isBusy, saveError, workspaceData.path]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty && !saving) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, saving]);
 
   useEffect(() => {
     if (!pendingStoryMemoryDraft) {
@@ -84,9 +158,27 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     }
 
     setSaving(true);
-    const updatedWorkspace = await handleUpdate(workspaceData);
-    if (updatedWorkspace) onUpdated?.(updatedWorkspace);
-    setSaving(false);
+    setSaveError(false);
+    let updatedWorkspace: WorkspaceNode | null = null;
+    const savingContent = { draft, manuscript };
+
+    try {
+      updatedWorkspace = await handleUpdate(workspaceData);
+      const contentIsStillCurrent =
+        latestContent.current.draft === savingContent.draft &&
+        latestContent.current.manuscript === savingContent.manuscript;
+
+      if (updatedWorkspace && contentIsStillCurrent) {
+        onUpdated?.(updatedWorkspace);
+        setDirty(false);
+      }
+    } catch {
+      setSaveError(true);
+      showToast('저장에 실패했습니다.', 'danger');
+      return;
+    } finally {
+      setSaving(false);
+    }
 
     if (!updatedWorkspace?.path) {
       return;
@@ -161,7 +253,10 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
                 </div>
                 <DnEditor
                   content={draft}
-                  setContent={setDraft}
+                  setContent={(content) => {
+                    setSaveError(false);
+                    setDraft(content);
+                  }}
                   setStatus={setDraftStatus}
                 />
               </div>
@@ -186,13 +281,19 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
               </div>
               <DnEditor
                 content={manuscript}
-                setContent={setManuscript}
+                setContent={(content) => {
+                  setSaveError(false);
+                  setManuscript(content);
+                }}
                 setStatus={setManuscriptStatus}
               />
             </div>
           )}
         </div>
         <div className={'flex items-center justify-end gap-2 self-end'}>
+          <div className={`typo-b6-r ${saveError ? 'text-red-500' : 'text-stone-400'}`}>
+            {saveError ? '저장 실패 · 다시 시도해주세요' : saving ? '저장 중…' : dirty ? '저장 대기 중…' : '자동 저장됨'}
+          </div>
           {isBusy && (
             <div className={'typo-b6-r text-stone-400'}>
               이 회차는 백그라운드 작업이 진행 중이라 저장·댓글 생성을 사용할 수 없습니다.
@@ -200,7 +301,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           )}
           <DnButton
             className={'w-[120px]'}
-            disabled={isBusy}
+            disabled={isBusy || saving}
             loading={saving}
             onClick={handleSave}
           >

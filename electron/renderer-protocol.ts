@@ -20,15 +20,20 @@ export function registerRendererProtocol() {
   protocol.handle('app', async (request) => {
     const rendererRoot = path.resolve(app.getAppPath(), 'build/client');
     const requestPath = decodeURIComponent(new URL(request.url).pathname).replace(/^[/\\]+/, '');
-    const requestedFile = path.resolve(rendererRoot, requestPath || 'index.html');
-    const isWithinRendererRoot =
-      requestedFile === rendererRoot || requestedFile.startsWith(`${rendererRoot}${path.sep}`);
+    const packagedAssetsRoot = path.resolve(app.getAppPath(), 'assets');
+    const isPackagedAsset = requestPath.startsWith('assets/fonts/');
+    const contentRoot = isPackagedAsset ? packagedAssetsRoot : rendererRoot;
+    const contentPath = isPackagedAsset ? requestPath.slice('assets/'.length) : requestPath;
+    const requestedFile = path.resolve(contentRoot, contentPath || 'index.html');
+    const isWithinContentRoot =
+      requestedFile === contentRoot || requestedFile.startsWith(`${contentRoot}${path.sep}`);
 
     try {
-      const content = await readFile(isWithinRendererRoot ? requestedFile : '');
+      const content = await readFile(isWithinContentRoot ? requestedFile : '');
       return new Response(content, {
         headers: {
           'content-type': CONTENT_TYPES[path.extname(requestedFile)] ?? 'application/octet-stream',
+          'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
         },
       });
     } catch {
@@ -36,6 +41,7 @@ export function registerRendererProtocol() {
       return new Response(content, {
         headers: {
           'content-type': 'text/html',
+          'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
         },
       });
     }

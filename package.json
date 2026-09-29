@@ -67,6 +67,7 @@
     "files": [
       "assets/app-logo.ico",
       "assets/app-logo.png",
+      "assets/fonts/**/*",
       "build/client/**/*",
       "dist-electron/**/*",
       "package.json"

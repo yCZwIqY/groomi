@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { app, BrowserWindow, nativeImage } from 'electron';
+import { app, BrowserWindow, nativeImage, shell } from 'electron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +37,7 @@ export function createMainWindow() {
     webPreferences: {
       preload: PRELOAD_PATH,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -51,6 +51,21 @@ export function createMainWindow() {
         loadRenderer(mainWindow);
       }
     }, RETRY_DELAY_MS);
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const currentUrl = mainWindow.webContents.getURL();
+    if (navigationUrl !== currentUrl) {
+      event.preventDefault();
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) {
+      void shell.openExternal(url);
+    }
+
+    return { action: 'deny' };
   });
 
   loadRenderer(mainWindow);

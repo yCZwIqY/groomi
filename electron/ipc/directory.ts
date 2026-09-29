@@ -1,12 +1,15 @@
-import { dialog, ipcMain } from 'electron';
+import { dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 
 import channels from '../common/channels.cjs';
 import { readDirectoryTree, readTextFile } from '../services/file-system.js';
+import { requireString, secureHandle } from './ipc-guards.js';
 
-export function registerDirectoryIpcHandlers() {
-  ipcMain.handle(channels.folder.select, async () => {
+export function registerDirectoryIpcHandlers(
+  assertInsideWorkspace: (targetPath: string) => Promise<void>,
+) {
+  secureHandle(channels.folder.select, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
     });
@@ -28,11 +31,15 @@ export function registerDirectoryIpcHandlers() {
     };
   });
 
-  ipcMain.handle(channels.file.read, async (_, filePath) => {
+  secureHandle(channels.file.read, async (_, filePath) => {
+    filePath = requireString(filePath, 'filePath');
+    await assertInsideWorkspace(filePath);
     return readTextFile(filePath);
   });
 
-  ipcMain.handle(channels.file.readImage, async (_, filePath) => {
+  secureHandle(channels.file.readImage, async (_, filePath) => {
+    filePath = requireString(filePath, 'filePath');
+    await assertInsideWorkspace(filePath);
     const imageBuffer = await fs.readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const mimeType =

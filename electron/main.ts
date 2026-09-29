@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, protocol, session } from 'electron';
 import { registerIpcHandlers } from './ipc/index.js';
 import { registerRendererProtocol } from './renderer-protocol.js';
 import { createMainWindow } from './windows/main-window.js';
@@ -20,6 +20,31 @@ protocol.registerSchemesAsPrivileged([
 registerIpcHandlers(app);
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const url = new URL(details.url);
+    const isRenderer =
+      (url.protocol === 'app:' && url.hostname === 'groomi') ||
+      (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname));
+
+    if (!isRenderer || !details.responseHeaders) {
+      callback({ responseHeaders: details.responseHeaders });
+      return;
+    }
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+        ],
+      },
+    });
+  });
+
   registerRendererProtocol();
   createMainWindow();
 

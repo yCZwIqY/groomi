@@ -1,10 +1,10 @@
-import { ipcMain } from 'electron';
 import ollama from 'ollama';
 
 import channels from '../common/channels.cjs';
+import { secureHandle } from './ipc-guards.js';
 
 export function registerOllamaIpcHandlers() {
-  ipcMain.handle(channels.ollama.isRunning, async () => {
+  secureHandle(channels.ollama.isRunning, async () => {
     try {
       await ollama.list();
       return true;
@@ -13,7 +13,7 @@ export function registerOllamaIpcHandlers() {
     }
   });
 
-  ipcMain.handle(channels.ollama.listModels, async () => {
+  secureHandle(channels.ollama.listModels, async () => {
     const response = await ollama.list();
     const models = await Promise.all(
       response.models.map(async (model) => {

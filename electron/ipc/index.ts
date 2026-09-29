@@ -11,7 +11,7 @@ import { registerOllamaIpcHandlers } from './ollama.js';
 export function registerIpcHandlers(app: App) {
   const workspaceService = createWorkspaceService(app);
 
-  registerDirectoryIpcHandlers();
+  registerDirectoryIpcHandlers(workspaceService.assertInsideWorkspace);
   registerWorkspaceIpcHandlers(app, workspaceService);
   registerDocumentIpcHandlers(workspaceService);
   registerSettingIpcHandlers(workspaceService);

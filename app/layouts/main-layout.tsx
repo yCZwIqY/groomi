@@ -1,5 +1,6 @@
 import SideBar from '~/features/side-bar/side-bar';
 import { Outlet } from 'react-router';
+import BackgroundTaskIndicator from '~/components/background-tasks/background-task-indicator';
 
 const MainLayout = () => {
   return (
@@ -14,6 +15,7 @@ const MainLayout = () => {
           <Outlet />
         </div>
       </main>
+      <BackgroundTaskIndicator />
     </div>
   );
 };

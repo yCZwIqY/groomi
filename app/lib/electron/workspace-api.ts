@@ -28,8 +28,8 @@ export async function updateWorkspaceRootPath(targetPath: string) {
   return requireElectronApi().updateWorkspaceRoot(targetPath);
 }
 
-export async function createWorkspace(path: string) {
-  return requireElectronApi().createWorkspace(path);
+export async function createWorkspace(path: string, novelType?: NovelType) {
+  return requireElectronApi().createWorkspace(path, novelType);
 }
 
 export async function removeWorkspace(path: string) {

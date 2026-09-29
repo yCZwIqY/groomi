@@ -1,7 +1,6 @@
 import path from 'node:path';
 
 import { ensureStore } from './workspace/store.js';
-import { deleteDocumentEmbedding } from './embedding/lancedb-store.js';
 import { buildNodeInfo, buildRootWorkspaceNode, buildTrashNodes, buildTreeNodes } from './workspace/nodes.js';
 import {
   collectDocumentIdsByGroupIds,
@@ -13,11 +12,11 @@ import {
 } from './workspace/shared.js';
 import { withTransaction } from '../db/connection.js';
 import type { WorkspaceServiceContext } from './workspace-service-context.js';
-import type { WorkspaceStoreDocument, WorkspaceStoreGroup } from './workspace/store-types.js';
+import type { NovelType, WorkspaceStoreDocument, WorkspaceStoreGroup } from './workspace/store-types.js';
 import type { WorkspaceUpdatePayload } from './workspace/payloads.js';
 
 export function createWorkspaceActions(context: WorkspaceServiceContext) {
-  async function createWorkspace(targetPath: string) {
+  async function createWorkspace(targetPath: string, novelType: NovelType = 'long') {
     const workspacePath = await context.getCurrentWorkspacePath();
     const normalizedTargetPath = normalizePath(targetPath);
     const parentPath = path.dirname(normalizedTargetPath);
@@ -48,6 +47,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
       parentId: parentNode?.id ?? null,
       description: '',
       coverPath: '',
+      novelType,
       createdAt: now(),
       updatedAt: now(),
       deletedAt: null,
@@ -109,9 +109,6 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
         await recentVisits.deleteRecentVisitsByIds([...removedNodeIds]);
       });
     });
-    for (const documentId of removedDocumentIds) {
-      await deleteDocumentEmbedding(workspacePath, documentId);
-    }
 
     return {
       removed: true,
@@ -149,9 +146,6 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
         await workspaceNodes.deleteNodesByIds([...removedNodeIds]);
       });
     });
-    for (const documentId of removedDocumentIds) {
-      await deleteDocumentEmbedding(workspacePath, documentId);
-    }
 
     return {
       removed: true,

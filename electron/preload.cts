@@ -6,6 +6,7 @@ type WorkspaceUpdatePayload = Record<string, unknown>;
 type DocumentUpdatePayload = Record<string, unknown>;
 type GenerateCommentsPayload = Record<string, unknown>;
 type AddCommentExamplePayload = Record<string, unknown>;
+type StoryMemoryDraft = Record<string, unknown>;
 
 contextBridge.exposeInMainWorld('electronMeta', {
   preloadReady: true,
@@ -52,7 +53,8 @@ const workspaceApi = {
   resetWorkspacePath: () => ipcRenderer.invoke(channels.workspace.resetPath),
   updateWorkspaceRoot: (targetPath: string) =>
     ipcRenderer.invoke(channels.workspace.updateRoot, targetPath),
-  createWorkspace: (name: string) => ipcRenderer.invoke(channels.workspace.createWorkspace, name),
+  createWorkspace: (name: string, novelType?: string) =>
+    ipcRenderer.invoke(channels.workspace.createWorkspace, name, novelType),
   renameWorkspace: (oldWorkspacePath: string, newName: string) =>
     ipcRenderer.invoke(channels.workspace.renameWorkspace, oldWorkspacePath, newName),
   removeWorkspace: (targetPath: string) =>
@@ -90,11 +92,13 @@ const settingApi = {
     ipcRenderer.invoke(channels.setting.updateSelectedLLMModel, selectedLLMModel),
 };
 
-const embeddingApi = {
-  indexDocument: (targetPath: string) =>
-    ipcRenderer.invoke(channels.embedding.indexDocument, targetPath),
-  searchDocuments: (query: string, limit?: number) =>
-    ipcRenderer.invoke(channels.embedding.searchDocument, query, limit),
+const storyMemoryApi = {
+  generateStoryMemory: (targetPath: string) =>
+    ipcRenderer.invoke(channels.storyMemory.generate, targetPath),
+  saveStoryMemory: (targetPath: string, draft: StoryMemoryDraft) =>
+    ipcRenderer.invoke(channels.storyMemory.save, targetPath, draft),
+  getLatestStoryMemory: (groupPath: string) =>
+    ipcRenderer.invoke(channels.storyMemory.getLatest, groupPath),
 };
 
 const ollamaApi = {
@@ -110,6 +114,10 @@ const commentApi = {
   listCommentExamples: () => ipcRenderer.invoke(channels.comment.listExamples),
   removeCommentExample: (id: string) =>
     ipcRenderer.invoke(channels.comment.removeExample, id),
+  listGeneratedComments: (documentPath: string) =>
+    ipcRenderer.invoke(channels.comment.listGenerated, documentPath),
+  removeGeneratedComment: (documentPath: string, commentId: string) =>
+    ipcRenderer.invoke(channels.comment.removeGenerated, documentPath, commentId),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -117,7 +125,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...workspaceApi,
   ...documentApi,
   ...settingApi,
-  ...embeddingApi,
+  ...storyMemoryApi,
   ...ollamaApi,
   ...commentApi,
 });

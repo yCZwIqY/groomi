@@ -44,33 +44,6 @@ export function createWorkspaceNodeRepository(db: sqlite3.Database) {
       return all<WorkspaceNodeRow>(db, `SELECT * FROM workspace_nodes ORDER BY updatedAt ASC LIMIT ${count}`);
     },
 
-    findActiveDocumentIds() {
-      return all<{ id: string }>(
-        db,
-        `
-          SELECT id
-          FROM workspace_nodes
-          WHERE type = 'document' AND deleted = 0 AND deletedAt IS NULL
-        `,
-      );
-    },
-
-    findActiveDocumentIdsCreatedBefore(createdAt: string) {
-      return all<{ id: string }>(
-        db,
-        `
-          SELECT id
-          FROM workspace_nodes
-          WHERE
-            type = 'document'
-            AND deleted = 0
-            AND deletedAt IS NULL
-            AND createdAt < ?
-        `,
-        [createdAt],
-      );
-    },
-
     deleteAllNodes() {
       return run(db, 'DELETE FROM workspace_nodes');
     },

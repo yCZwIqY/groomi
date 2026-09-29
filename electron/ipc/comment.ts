@@ -21,4 +21,15 @@ export function registerCommentIpcHandlers(
   ipcMain.handle(channels.comment.removeExample, async (_, id) => {
     return workspaceService.removeCommentExample(requireString(id, 'id'));
   });
+
+  ipcMain.handle(channels.comment.listGenerated, async (_, documentPath) => {
+    return workspaceService.listGeneratedComments(requireString(documentPath, 'documentPath'));
+  });
+
+  ipcMain.handle(channels.comment.removeGenerated, async (_, documentPath, commentId) => {
+    return workspaceService.removeGeneratedComment(
+      requireString(documentPath, 'documentPath'),
+      requireString(commentId, 'commentId'),
+    );
+  });
 }

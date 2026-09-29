@@ -14,7 +14,10 @@ const DnSwitch = <T,>({ options, value, setValue }: Props<T>) => {
 
   return (
     <div className={'flex flex-col'}>
-      <div className={'grid grid-cols-3 h-10'}>
+      <div
+        className={'grid h-10'}
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
         {options.map(({ label, value }, index) => (
           <button
             type='button'

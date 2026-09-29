@@ -20,7 +20,12 @@ import {
   readDocumentContent,
   writeDocumentContent,
 } from './script-files.js';
-import type { WorkspaceStore, WorkspaceStoreDocument, WorkspaceStoreGroup } from './store-types.js';
+import type {
+  NovelType,
+  WorkspaceStore,
+  WorkspaceStoreDocument,
+  WorkspaceStoreGroup,
+} from './store-types.js';
 import { normalizePath, now } from './shared.js';
 
 export {
@@ -71,6 +76,7 @@ export async function readStore(workspacePath: string): Promise<WorkspaceStore |
         name: rootRow.name,
         description: groupInfoById.get(rootRow.id)?.description ?? '',
         coverPath: groupInfoById.get(rootRow.id)?.coverPath ?? '',
+        novelType: (groupInfoById.get(rootRow.id)?.novelType as NovelType | undefined) ?? 'long',
         createdAt: rootRow.createdAt,
         updatedAt: rootRow.updatedAt,
         deletedAt: rootRow.deletedAt,
@@ -85,6 +91,7 @@ export async function readStore(workspacePath: string): Promise<WorkspaceStore |
             name: row.name,
             description: groupInfoById.get(row.id)?.description ?? '',
             coverPath: groupInfoById.get(row.id)?.coverPath ?? '',
+            novelType: (groupInfoById.get(row.id)?.novelType as NovelType | undefined) ?? 'long',
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             deletedAt: row.deletedAt,

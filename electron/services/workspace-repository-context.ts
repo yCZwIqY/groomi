@@ -2,6 +2,7 @@ import type sqlite3 from 'sqlite3';
 
 import { createCommentExampleRepository } from '../repositories/comment-example-repository.js';
 import { initializeSchema, withDatabase } from '../db/connection.js';
+import { createDocumentCommentRepository } from '../repositories/document-comment-repository.js';
 import { createDocumentInfoRepository } from '../repositories/document-info-repository.js';
 import { createGroupInfoRepository } from '../repositories/group-info-repository.js';
 import { createRecentVisitRepository } from '../repositories/recent-visit-repository.js';
@@ -11,6 +12,7 @@ import { createWorkspaceNodeRepository } from '../repositories/workspace-node-re
 export type WorkspaceRepositories = {
   commentExamples: ReturnType<typeof createCommentExampleRepository>;
   db: sqlite3.Database;
+  documentComments: ReturnType<typeof createDocumentCommentRepository>;
   documentInfo: ReturnType<typeof createDocumentInfoRepository>;
   groupInfo: ReturnType<typeof createGroupInfoRepository>;
   recentVisits: ReturnType<typeof createRecentVisitRepository>;
@@ -28,6 +30,7 @@ export function withWorkspaceRepositories<Result>(
     return callback({
       commentExamples: createCommentExampleRepository(db),
       db,
+      documentComments: createDocumentCommentRepository(db),
       documentInfo: createDocumentInfoRepository(db),
       groupInfo: createGroupInfoRepository(db),
       recentVisits: createRecentVisitRepository(db),

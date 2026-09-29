@@ -8,6 +8,7 @@ import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
 import DnButton from '~/components/common/buttons/dn-button';
 import AddWorkspaceButton from '~/components/add-workspace-modal/add-workspace-button';
 import WorkspaceList from '~/features/manuscript/workspace-data/workspace-list';
+import WorkspaceTabs from '~/features/manuscript/workspace-data/workspace-tabs';
 import WorkspaceSummary from '~/features/manuscript/workspace-data/workspace-summary';
 import { WorkspaceBreadcrumb } from '~/features';
 
@@ -85,7 +86,14 @@ const WorkspaceData = () => {
           <DnButton>추가하기</DnButton>
         </AddWorkspaceButton>
       </div>
-      <WorkspaceList tree={tree} />
+      {workspaceData?.workspace?.novelType === 'long' ? (
+        <WorkspaceTabs
+          groupPath={workspaceData.path}
+          tree={tree}
+        />
+      ) : (
+        <WorkspaceList tree={tree} />
+      )}
     </div>
   );
 };

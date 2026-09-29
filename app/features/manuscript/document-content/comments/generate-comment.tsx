@@ -7,6 +7,7 @@ import { RxDoubleArrowDown } from 'react-icons/rx';
 import { generateComments } from '~/lib/electron/comment-api';
 import { getOllamaRunning } from '~/lib/ollama-api';
 import { showToast } from '~/lib/toast-manager';
+import { useBackgroundTasks, useIsDocumentBusy } from '~/stores/use-background-tasks';
 
 const EXPERTISE_LABEL: Record<number, string> = {
   0: '입문 독자',
@@ -32,10 +33,11 @@ const COMMENT_COUNT_OPTIONS = [
 
 interface Props {
   documentPath: string;
+  documentTitle: string;
   onGenerated?: (comments: GeneratedComment[]) => void;
 }
 
-const GenerateComment = ({ documentPath, onGenerated }: Props) => {
+const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) => {
   const [startAge, setStartAge] = useState<number>(10);
   const [endAge, setEndAge] = useState<number>(20);
   const [expertise, setExpertise] = useState<number>(0);
@@ -46,7 +48,10 @@ const GenerateComment = ({ documentPath, onGenerated }: Props) => {
   const [ollamaRunning, setOllamaRunning] = useState(false);
 
   const [open, setOpen] = useState<boolean>(false);
-  const disabled = checkingOllama || !ollamaRunning || loading;
+  const startTask = useBackgroundTasks((state) => state.startTask);
+  const finishTask = useBackgroundTasks((state) => state.finishTask);
+  const isBusy = useIsDocumentBusy(documentPath);
+  const disabled = checkingOllama || !ollamaRunning || loading || isBusy;
 
   const checkOllama = async () => {
     setCheckingOllama(true);
@@ -71,6 +76,7 @@ const GenerateComment = ({ documentPath, onGenerated }: Props) => {
     }
 
     setLoading(true);
+    const taskId = startTask({ documentPath, documentTitle, type: 'comments' });
 
     try {
       const comments = await generateComments({
@@ -81,8 +87,11 @@ const GenerateComment = ({ documentPath, onGenerated }: Props) => {
         count,
       });
 
+      finishTask(taskId, 'done');
+      showToast(`${documentTitle} 댓글 생성이 완료됐습니다.`, 'success');
       onGenerated?.(comments);
     } catch (error) {
+      finishTask(taskId, 'error');
       showToast(error instanceof Error ? error.message : '댓글 생성에 실패했습니다.', 'danger');
     } finally {
       setLoading(false);
@@ -107,7 +116,13 @@ const GenerateComment = ({ documentPath, onGenerated }: Props) => {
           disabled={disabled}
           onClick={handleGenerate}
         >
-          {checkingOllama ? 'Ollama 확인 중' : '댓글 생성'}
+          {checkingOllama
+            ? 'Ollama 확인 중'
+            : loading
+              ? '댓글 생성 중'
+              : isBusy
+                ? '다른 작업 진행 중'
+                : '댓글 생성'}
         </DnButton>
       </div>
       {!checkingOllama && !ollamaRunning && (

@@ -108,8 +108,11 @@ export function registerWorkspaceIpcHandlers(
     return workspaceInfo;
   });
 
-  ipcMain.handle(channels.workspace.createWorkspace, async (_, name) => {
-    const workspace = await workspaceService.createWorkspace(requireString(name, 'name'));
+  ipcMain.handle(channels.workspace.createWorkspace, async (_, name, novelType) => {
+    const workspace = await workspaceService.createWorkspace(
+      requireString(name, 'name'),
+      novelType === 'short' ? 'short' : 'long',
+    );
     scheduleWorkspaceTreeChanged();
     return workspace;
   });

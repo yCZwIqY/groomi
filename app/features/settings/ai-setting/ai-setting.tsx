@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import {
-  getSettingInfo,
-  updateSelectedEmbeddingModel,
-  updateSelectedLLMModel,
-} from '~/lib/electron/setting-api';
+import { getSettingInfo, updateSelectedLLMModel } from '~/lib/electron/setting-api';
 import { getOllamaModels, getOllamaRunning, type OllamaModel } from '~/lib/ollama-api';
 import { DnSelect } from '~/components/common/selector';
 
@@ -37,9 +33,7 @@ function toModelOption(model: OllamaModel) {
 const AiSetting = () => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [embeddingModels, setEmbeddingModels] = useState<OllamaModel[]>([]);
   const [llmModels, setLlmModels] = useState<OllamaModel[]>([]);
-  const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState<string | null>(null);
   const [selectedLLMModel, setSelectedLLMModel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,29 +44,16 @@ const AiSetting = () => {
       setIsRunning(nextIsRunning);
 
       if (!nextIsRunning) {
-        setEmbeddingModels([]);
         setLlmModels([]);
-        setSelectedEmbeddingModel(null);
         setSelectedLLMModel(null);
         return;
       }
 
       const [modelResponse, settingInfo] = await Promise.all([getOllamaModels(), getSettingInfo()]);
-      const nextEmbeddingModels = modelResponse.models.filter((model) =>
-        model.capabilities.includes('embedding'),
-      );
       const nextLlmModels = modelResponse.models.filter((model) =>
         model.capabilities.includes('completion'),
       );
-      const nextEmbeddingNames = new Set(nextEmbeddingModels.map(getModelName));
       const nextLlmNames = new Set(nextLlmModels.map(getModelName));
-      const nextSelectedEmbeddingModel =
-        settingInfo.selectedEmbeddingModel &&
-        nextEmbeddingNames.has(settingInfo.selectedEmbeddingModel)
-          ? settingInfo.selectedEmbeddingModel
-          : nextEmbeddingModels[0]
-            ? getModelName(nextEmbeddingModels[0])
-            : null;
       const nextSelectedLLMModel =
         settingInfo.selectedLLMModel && nextLlmNames.has(settingInfo.selectedLLMModel)
           ? settingInfo.selectedLLMModel
@@ -80,14 +61,8 @@ const AiSetting = () => {
             ? getModelName(nextLlmModels[0])
             : null;
 
-      setEmbeddingModels(nextEmbeddingModels);
       setLlmModels(nextLlmModels);
-      setSelectedEmbeddingModel(nextSelectedEmbeddingModel);
       setSelectedLLMModel(nextSelectedLLMModel);
-
-      if (nextSelectedEmbeddingModel !== settingInfo.selectedEmbeddingModel) {
-        await updateSelectedEmbeddingModel(nextSelectedEmbeddingModel);
-      }
 
       if (nextSelectedLLMModel !== settingInfo.selectedLLMModel) {
         await updateSelectedLLMModel(nextSelectedLLMModel);
@@ -97,21 +72,13 @@ const AiSetting = () => {
     void loadModels()
       .catch(() => {
         setIsRunning(false);
-        setEmbeddingModels([]);
         setLlmModels([]);
-        setSelectedEmbeddingModel(null);
         setSelectedLLMModel(null);
       })
       .finally(() => {
         setIsLoading(false);
       });
   }, []);
-
-  const handleEmbeddingModelChange = async (value: string | number) => {
-    const nextValue = value ? String(value) : null;
-    setSelectedEmbeddingModel(nextValue);
-    await updateSelectedEmbeddingModel(nextValue);
-  };
 
   const handleLLMModelChange = async (value: string | number) => {
     const nextValue = value ? String(value) : null;
@@ -126,7 +93,7 @@ const AiSetting = () => {
       >
         <div>
           <div className={'text-sm font-bold text-neutral-600'}>AI 모델 설정</div>
-          <p className={'mt-1 text-xs text-neutral-400'}>임베딩 및 생성형 llm 모델을 선택합니다.</p>
+          <p className={'mt-1 text-xs text-neutral-400'}>댓글 생성, 회차 정보 요약에 사용할 llm 모델을 선택합니다.</p>
         </div>
       </div>
       <div className={'p-4'}>
@@ -151,19 +118,9 @@ const AiSetting = () => {
           <div className='space-y-4'>
             {isLoading && <div className='py-1'>모델 목록을 불러오는 중입니다.</div>}
 
-            {!isLoading && embeddingModels.length === 0 && llmModels.length === 0 && (
+            {!isLoading && llmModels.length === 0 && (
               <div className='py-1'>모델을 찾을 수 없습니다. Ollama에서 모델을 설치해주세요.</div>
             )}
-
-            <DnSelect
-              disabled={embeddingModels.length === 0}
-              emptyLabel='사용 가능한 임베딩 모델 없음'
-              hint='문서 검색과 의미 기반 매칭에 사용할 모델입니다.'
-              label='임베딩 모델'
-              onChange={(value) => void handleEmbeddingModelChange(value)}
-              options={embeddingModels.map(toModelOption)}
-              value={selectedEmbeddingModel ?? ''}
-            />
 
             <DnSelect
               disabled={llmModels.length === 0}
@@ -181,26 +138,16 @@ const AiSetting = () => {
           <div className='font-medium text-neutral-900'>추천 모델</div>
           <ul className='mt-2 space-y-1'>
             <li>
-              임베딩:{' '}
-              <a
-                className='font-medium text-blue-600 hover:text-blue-700'
-                href='https://ollama.com/dengcao/Qwen3-Embedding-0.6B'
-                rel='noreferrer'
-                target='_blank'
-              >
-                Qwen3-Embedding-0.6B
-              </a>
-            </li>
-            <li>
               LLM:{' '}
               <a
                 className='font-medium text-blue-600 hover:text-blue-700'
-                href='https://ollama.com/library/exaone3.5'
+                href='https://ollama.com/ingu627/exaone4.0'
                 rel='noreferrer'
                 target='_blank'
               >
-                EXAONE3.5
-              </a>
+                EXAONE 4.0
+              </a>{' '}
+              <span className='text-neutral-400'>(커뮤니티 빌드, 라이선스 확인 필요)</span>
             </li>
           </ul>
         </div>

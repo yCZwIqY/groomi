@@ -8,12 +8,42 @@ export type StoredScriptContent = {
   updatedAt: string;
 };
 
+export type StoryMemoryImportance = '상' | '중' | '하';
+
+export type StoryMemoryEvent = {
+  description: string;
+  importance: StoryMemoryImportance;
+};
+
+export type StoryMemoryCharacter = {
+  name: string;
+  info: string;
+  keywords: string[];
+  summary: string;
+};
+
+export type StoryMemoryPlotHook = {
+  description: string;
+  plantedAt: string;
+};
+
+export type StoryMemory = {
+  synopsis: string;
+  events: StoryMemoryEvent[];
+  characters: StoryMemoryCharacter[];
+  plotHooks: StoryMemoryPlotHook[];
+  generatedAt: string;
+};
+
+export type NovelType = 'long' | 'short';
+
 export type StoredDocumentContent = {
   id?: string;
   title?: string;
   subTitle?: string;
   draft?: StoredScriptContent;
   manuscript?: StoredScriptContent;
+  storyMemory?: StoryMemory;
 };
 
 export type WorkspaceStoreRoot = {
@@ -21,6 +51,7 @@ export type WorkspaceStoreRoot = {
   name: string;
   description: string;
   coverPath: string;
+  novelType: NovelType;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;

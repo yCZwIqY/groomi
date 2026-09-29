@@ -28,6 +28,7 @@ export const WORKSPACE_SCHEMA_STATEMENTS = [
       nodeId TEXT PRIMARY KEY,
       description TEXT,
       coverPath TEXT,
+      novelType TEXT,
       FOREIGN KEY (nodeId) REFERENCES workspace_nodes(id) ON DELETE CASCADE
     )
   `,
@@ -64,6 +65,20 @@ export const WORKSPACE_SCHEMA_STATEMENTS = [
       source TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS document_comments (
+      id TEXT PRIMARY KEY,
+      documentId TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tone TEXT,
+      ageGroup INTEGER,
+      expertiseLevel INTEGER,
+      expertiseLabel TEXT,
+      usedContext INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (documentId) REFERENCES workspace_nodes(id) ON DELETE CASCADE
     )
   `,
 ];

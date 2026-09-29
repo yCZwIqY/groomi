@@ -1,6 +1,6 @@
 {
   "name": "groomi",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "productName": "Groomi",
@@ -14,8 +14,6 @@
     "typecheck": "react-router typegen && tsc && tsc -p tsconfig.electron.json --noEmit"
   },
   "dependencies": {
-    "@lancedb/lancedb": "^0.30.0",
-    "@lancedb/lancedb-win32-x64-msvc": "0.30.0",
     "@react-router/node": "7.15.0",
     "@react-router/serve": "7.15.0",
     "@tiptap/core": "^3.23.6",
@@ -23,7 +21,6 @@
     "@tiptap/pm": "^3.23.6",
     "@tiptap/react": "^3.23.6",
     "@tiptap/starter-kit": "^3.23.6",
-    "apache-arrow": "18.1.0",
     "axios": "^1.16.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",

@@ -40,9 +40,10 @@ const channels = {
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },
-  embedding: {
-    indexDocument: 'embedding:index',
-    searchDocument: 'embedding:search',
+  storyMemory: {
+    generate: 'story-memory:generate',
+    save: 'story-memory:save',
+    getLatest: 'story-memory:get-latest',
   },
   ollama: {
     isRunning: 'ollama:is-running',
@@ -53,6 +54,8 @@ const channels = {
     generateComments: 'comment:generateComments',
     listExamples: 'comment:list-examples',
     removeExample: 'comment:remove-example',
+    listGenerated: 'comment:list-generated',
+    removeGenerated: 'comment:remove-generated',
   }
 };
 

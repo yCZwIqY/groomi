@@ -1,8 +1,10 @@
 import ollama from 'ollama';
 import { readDocumentContent } from '../workspace/store.js';
-import { findDocumentEmbeddingsByParentPath } from '../embedding/lancedb-store.js';
+import { getNovelType, sortChaptersByCreatedAt } from '../story-memory/story-memory-actions.js';
 import { getDefaultCommentStyleExamples } from './default-comment-style-examples.js';
+import { toGeneratedComment } from './comment-store-actions.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
+import type { StoryMemoryCharacter, StoryMemoryEvent } from '../workspace/store-types.js';
 
 type GenerateCommentsPayload = {
   documentPath: string;
@@ -12,7 +14,7 @@ type GenerateCommentsPayload = {
   count: number;
 };
 
-type GeneratedComment = {
+type RawGeneratedComment = {
   ageGroup: number;
   expertiseLevel: number;
   expertiseLabel: string;
@@ -22,15 +24,73 @@ type GeneratedComment = {
 };
 
 type GenerateCommentsResult = {
-  comments?: GeneratedComment[];
+  comments?: RawGeneratedComment[];
 };
 
-const MAX_CONTEXT_CHUNKS = 80;
 const MAX_SAVED_STYLE_EXAMPLES = 12;
+
+const EXPERTISE_LEVELS = [0, 20, 40, 60, 80, 100] as const;
+const EXPERTISE_LABELS: Record<number, string> = {
+  0: '입문 독자',
+  20: '가볍게 즐기는 독자',
+  40: '자주 읽는 독자',
+  60: '꼼꼼히 읽는 독자',
+  80: '창작 경험 보유',
+  100: '편집자/비평가',
+};
+
+type PersonaSlot = {
+  ageGroup: number;
+  expertiseLevel: number;
+  expertiseLabel: string;
+};
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+
+  return result;
+}
+
+// 요청된 개수만큼 (연령대 x 전문성) 조합을 최대한 고르게 순회시켜, 특정 조합에만 쏠리지 않게 한다.
+function buildPersonaSlots({
+  startAge,
+  endAge,
+  expertise,
+  count,
+}: {
+  startAge: number;
+  endAge: number;
+  expertise: number;
+  count: number;
+}): PersonaSlot[] {
+  const ageSteps: number[] = [];
+  for (let age = startAge; age <= endAge; age += 10) {
+    ageSteps.push(age);
+  }
+
+  const expertiseSteps = EXPERTISE_LEVELS.filter((level) => level <= expertise);
+
+  const combos = shuffle(
+    ageSteps.flatMap((ageGroup) =>
+      expertiseSteps.map((expertiseLevel) => ({
+        ageGroup,
+        expertiseLevel,
+        expertiseLabel: EXPERTISE_LABELS[expertiseLevel],
+      })),
+    ),
+  );
+
+  return Array.from({ length: count }, (_, index) => combos[index % combos.length]);
+}
 
 export function createCommentGenerationActions(context: WorkspaceServiceContext) {
   async function generateComments(payload: GenerateCommentsPayload) {
-    const { workspacePath, node } = await context.getStoreNodeByPath(payload.documentPath);
+    const { workspacePath, store, node } = await context.getStoreNodeByPath(payload.documentPath);
 
     if (!node || node.type !== 'document') {
       throw new Error('댓글을 생성할 문서를 찾을 수 없습니다.');
@@ -57,20 +117,37 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       .filter(Boolean)
       .join('\n\n');
 
-    // 같은 부모 그룹 아래에서 이미 적재된 chunk만 가져온다.
-    // 적재된 chunk가 없으면 빈 배열로 진행한다.
-    const contextChunks = await findDocumentEmbeddingsByParentPath(
-      workspacePath,
-      node.parentPath,
-      MAX_CONTEXT_CHUNKS,
-    );
-    const previousActiveDocumentIds = await context.withWorkspaceRepositories(
-      workspacePath,
-      async ({ workspaceNodes }) => {
-        const rows = await workspaceNodes.findActiveDocumentIdsCreatedBefore(node.createdAt);
-        return new Set(rows.map((row) => row.id));
-      },
-    );
+    // 단편(독립 회차) 그룹은 화차 간 맥락을 공유하지 않는다.
+    const isStandaloneGroup = getNovelType(store, node.parentId ?? null) === 'short';
+
+    // 같은 부모 그룹 안에서 화차 순서(n-2/n-1)를 계산해 맥락을 구성한다.
+    const chapters = isStandaloneGroup
+      ? []
+      : sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
+    const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
+    const earlierSynopsisChapter = currentIndex - 2 >= 0 ? chapters[currentIndex - 2] : null;
+    const previousChapter = currentIndex - 1 >= 0 ? chapters[currentIndex - 1] : null;
+
+    const earlierSynopsis = earlierSynopsisChapter
+      ? ((await readDocumentContent(workspacePath, earlierSynopsisChapter.id)).storyMemory
+          ?.synopsis ?? '')
+      : '';
+
+    const previousChapterContent = previousChapter
+      ? await readDocumentContent(workspacePath, previousChapter.id)
+      : null;
+    const previousChapterScript = previousChapterContent
+      ? [
+          previousChapterContent.title,
+          previousChapterContent.subTitle,
+          previousChapterContent.draft?.content,
+          previousChapterContent.manuscript?.content,
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : '';
+    const majorEvents = previousChapterContent?.storyMemory?.events ?? [];
+    const characters = previousChapterContent?.storyMemory?.characters ?? [];
 
     const savedStyleExamples = await context.withWorkspaceRepositories(
       workspacePath,
@@ -92,16 +169,18 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       ...savedStyleExamples,
     ];
 
+    const personaSlots = buildPersonaSlots(payload);
+
     const { systemPrompt, userPrompt } = buildCommentPrompt({
       ...payload,
       targetTitle: content.title ?? node.name,
       targetScript,
-      contextChunks: contextChunks.filter(
-        (chunk) =>
-          chunk.documentPath !== payload.documentPath &&
-          previousActiveDocumentIds.has(chunk.documentId),
-      ),
+      earlierSynopsis,
+      previousChapterScript,
+      majorEvents,
+      characters,
       styleExamples,
+      personaSlots,
     });
 
     const response = await ollama.chat({
@@ -119,49 +198,79 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       format: 'json',
     });
 
-    const parsed = parseGeneratedComments(response.message.content);
+    const parsed = parseGeneratedComments(response.message.content, personaSlots);
 
-    return parsed.comments;
+    const savedRows = await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ documentComments }) =>
+        documentComments.insertComments(
+          node.id,
+          parsed.comments.map((comment) => ({
+            content: comment.content,
+            tone: comment.tone,
+            ageGroup: comment.ageGroup,
+            expertiseLevel: comment.expertiseLevel,
+            expertiseLabel: comment.expertiseLabel,
+            usedContext: comment.usedContext,
+          })),
+        ),
+    );
+
+    return savedRows.map(toGeneratedComment);
   }
 
   function buildCommentPrompt({
     startAge,
     endAge,
-    expertise,
     count,
     targetTitle,
     targetScript,
-    contextChunks,
+    earlierSynopsis,
+    previousChapterScript,
+    majorEvents,
+    characters,
     styleExamples,
+    personaSlots,
   }: {
     startAge: number;
     endAge: number;
-    expertise: number;
     count: number;
     targetTitle: string;
     targetScript: string;
-    contextChunks: Array<{
-      title?: string;
-      documentPath?: string;
-      content?: string;
-    }>;
+    earlierSynopsis: string;
+    previousChapterScript: string;
+    majorEvents: StoryMemoryEvent[];
+    characters: StoryMemoryCharacter[];
     styleExamples: Array<{
       content: string;
       tone?: string | null;
       ageGroup?: number | null;
       expertiseLevel?: number | null;
     }>;
+    personaSlots: PersonaSlot[];
   }): { systemPrompt: string; userPrompt: string } {
-    const contextText =
-      contextChunks.length > 0
-        ? contextChunks
+    const earlierSynopsisText = earlierSynopsis || '없음';
+    const previousChapterScriptText = previousChapterScript || '없음 (첫 화)';
+    const majorEventsText =
+      majorEvents.length > 0
+        ? (['상', '중', '하'] as const)
+            .map((importance) => {
+              const events = majorEvents.filter((event) => event.importance === importance);
+              if (events.length === 0) {
+                return null;
+              }
+
+              return `[${importance}]\n${events.map((event) => `- ${event.description}`).join('\n')}`;
+            })
+            .filter(Boolean)
+            .join('\n')
+        : '없음';
+    const charactersText =
+      characters.length > 0
+        ? characters
             .map(
-              (chunk, index) => `
-  [CONTEXT ${index + 1}]
-  문서: ${chunk.title ?? chunk.documentPath ?? 'unknown'}
-  내용:
-  ${chunk.content ?? ''}
-  `,
+              (character) =>
+                `- ${character.name} (${character.keywords.join(', ') || '키워드 없음'})\n  정보: ${character.info}\n  행동 요약: ${character.summary}`,
             )
             .join('\n')
         : '없음';
@@ -194,33 +303,34 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
 - 마크다운, 설명, 코드블록, JSON 밖의 텍스트를 절대 포함하지 않는다.
 `;
 
+    const personaSlotsText = personaSlots
+      .map(
+        (slot, index) =>
+          `${index + 1}. ageGroup=${slot.ageGroup}, expertiseLevel=${slot.expertiseLevel}, expertiseLabel="${slot.expertiseLabel}"`,
+      )
+      .join('\n');
+
     const userPrompt = `
 독자 조건:
 - 연령대: ${startAge}대 ~ ${endAge}대
-- 전문성 수치: ${expertise}
 - 생성할 댓글 수: ${count}개
 
+PERSONA_SLOTS (댓글마다 반드시 지켜야 하는 순서와 조건):
+${personaSlotsText}
+
 필드 규칙:
-- ageGroup은 ${startAge}, ${startAge + 10}, ... ${endAge} 중 하나의 숫자만 사용한다.
-- expertiseLevel은 0, 20, 40, 60, 80, 100 중 하나만 사용한다.
-- expertiseLevel은 주어진 전문성 수치를 벗어나면 안된다.
-- expertiseLabel은 expertiseLevel에 맞춰 사용한다.
-  - 0: 입문 독자
-  - 20: 가볍게 즐기는 독자
-  - 40: 자주 읽는 독자
-  - 60: 꼼꼼히 읽는 독자
-  - 80: 창작 경험 보유
-  - 100: 편집자/비평가
-- tone은 "몰입", "의문", "추측", "아쉬움", "기대", "캐릭터 반응", "분석", "지적" 중 하나만 사용한다.
+- comments 배열의 길이는 정확히 ${count}개이며, i번째 댓글은 PERSONA_SLOTS의 i번째 조건을 그대로 사용한다.
+- ageGroup, expertiseLevel, expertiseLabel은 PERSONA_SLOTS에 주어진 값을 절대 바꾸지 않고 그대로 채운다. 이 값들은 이미 연령대/전문성 조합이 골고루 섞이도록 미리 정해둔 것이다.
+- tone은 "몰입", "의문", "추측", "아쉬움", "기대", "캐릭터 반응", "분석", "지적" 중 하나만 사용하며, 같은 tone이 전체 댓글의 절반을 넘지 않도록 분산시킨다.
 - usedContext는 GROUP_CONTEXT를 댓글 작성에 참고했으면 true, 아니면 false다.
 - TARGET_SCRIPT에 대한 맞춤법 검사를 수행하고, 틀린 부분이 있을 경우 댓글 중 하나를 맞춤법 지적 댓글로 변경한다.
 
 댓글 작성 규칙:
 1. 현재 스크립트 안에 드러난 장면, 대사, 감정, 전개에 반응한다.
 2. 다양한 반응을 섞는다.
-3. 전문성이 낮을수록 짧고 감정적이며 구어체에 가깝게 쓴다.
-4. 전문성이 높을수록 구체적인 장면 판단, 구성 비판, 오타, 문체, 문장 흐름을 지적한다.
-5. 어린 연령대일수록 단순하고 직관적인 표현을 쓴다.
+3. expertiseLevel이 낮을수록 짧고 감정적이며 구어체에 가깝게 쓴다.
+4. expertiseLevel이 높을수록 구체적인 장면 판단, 구성 비판, 오타, 문체, 문장 흐름을 지적한다.
+5. ageGroup이 어릴수록 단순하고 직관적인 표현을 쓴다.
 6. 모든 댓글이 같은 말투가 되지 않게 한다.
 7. STYLE_EXAMPLES가 있으면 문체 밀도, 길이, 구어체 정도를 적극적으로 참고한다.
 8. GROUP_CONTEXT와 TARGET_SCRIPT가 모순될 때는 전문성이 높은 댓글에서만 자연스럽게 지적한다.
@@ -240,8 +350,17 @@ ${targetTitle}
 TARGET_SCRIPT:
 ${targetScript}
 
-GROUP_CONTEXT:
-${contextText}
+GROUP_CONTEXT (n-2화까지 줄거리):
+${earlierSynopsisText}
+
+GROUP_CONTEXT (n-1화 원문):
+${previousChapterScriptText}
+
+GROUP_CONTEXT (n-1화까지 주요 사건, 중요도별):
+${majorEventsText}
+
+GROUP_CONTEXT (n-1화까지 등장인물 정리):
+${charactersText}
 
 STYLE_EXAMPLES:
 ${styleExampleText}
@@ -264,7 +383,10 @@ ${styleExampleText}
     return { systemPrompt, userPrompt };
   }
 
-  function parseGeneratedComments(content: string): { comments: GeneratedComment[] } {
+  function parseGeneratedComments(
+    content: string,
+    personaSlots: PersonaSlot[],
+  ): { comments: RawGeneratedComment[] } {
     let parsed: GenerateCommentsResult;
 
     try {
@@ -277,7 +399,21 @@ ${styleExampleText}
       throw new Error(`댓글 생성 결과에 comments 배열이 없습니다: ${content}`);
     }
 
-    return { comments: parsed.comments };
+    if (parsed.comments.length !== personaSlots.length) {
+      throw new Error(
+        `댓글 생성 결과 개수(${parsed.comments.length})가 요청한 개수(${personaSlots.length})와 다릅니다.`,
+      );
+    }
+
+    // ageGroup/expertiseLevel/expertiseLabel은 모델이 실수로 바꿔도 미리 정해둔 분포가 깨지지 않도록 서버에서 강제로 덮어쓴다.
+    const comments = parsed.comments.map((comment, index) => ({
+      ...comment,
+      ageGroup: personaSlots[index].ageGroup,
+      expertiseLevel: personaSlots[index].expertiseLevel,
+      expertiseLabel: personaSlots[index].expertiseLabel,
+    }));
+
+    return { comments };
   }
 
   return {

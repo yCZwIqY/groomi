@@ -1,87 +1,96 @@
-# Welcome to React Router!
+# Groomi (그루미)
 
-A modern, production-ready template for building full-stack React applications using React Router.
+웹소설 작가를 위한 원고 관리 및 AI 리뷰 데스크톱 앱입니다. 워크스페이스 단위로 원고를 관리하고, 로컬 LLM(Ollama)을 이용해 가상 독자 댓글을 생성해 초고를 검토할 수 있습니다.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## 주요 기능
 
-## Features
+- **워크스페이스/원고 관리**: 폴더 트리 구조로 시리즈·화차를 정리하고, 화별로 초안(draft)과 원고(manuscript)를 분리해서 관리합니다. 그룹(폴더) 생성 시 **장편/단편**을 선택할 수 있고, 단편 그룹의 회차는 서로 줄거리를 이어가지 않고 독립적으로 관리됩니다.
+- **에디터**: Tiptap 기반 에디터로 초안/분할/원고 보기를 전환하며 집필하고, 공백 포함·미포함 글자 수를 실시간으로 확인할 수 있습니다.
+- **AI 가상 독자 댓글 생성**: 로컬 LLM(Ollama)을 통해 연령대, 독자 전문성, 톤, 개수를 설정해 실제 독자처럼 반응하는 댓글을 생성합니다. 생성된 댓글은 회차별로 저장되어 다시 열어도 유지되며(최신 생성분이 위로, 생성일 내림차순), 개별 삭제도 가능합니다.
+- **회차별 스토리 메모리**: 저장 시 AI가 현재까지의 줄거리, 중요도(상/중/하)별 주요 사건, 등장인물, 떡밥(아직 해결되지 않은 복선·약속)을 생성하고, 사용자가 탭으로 구분된 모달에서 검토·수정한 뒤 회차별로 저장합니다. 등장인물은 이전 회차 목록을 유지하면서 변경된 부분만 갱신되고, 떡밥은 해당 화에서 회수(해결)되면 목록에서 제거됩니다. 댓글 생성 시 n-2화까지는 줄거리 요약을, n-1·n화는 원문 전체를 맥락으로 사용해 설정 오류나 개연성 문제를 짚어줍니다.
+- **장편 그룹 상세 탭**: 그룹 상세 페이지에서 하위목록 외에 현재까지 줄거리/사건/등장인물/떡밥을 그룹 내 가장 최근 회차 기준으로 읽기 전용으로 확인할 수 있습니다.
+- **백그라운드 작업 표시**: 저장 후 스토리 메모리 생성, 댓글 생성은 화면을 막지 않고 백그라운드에서 진행되며, 우상단의 작은 표시창에서 진행 상황을 확인할 수 있습니다. 작업 중인 회차는 저장/댓글 생성만 잠기고, 완료되면 토스트 알림이 뜹니다.
+- **댓글 스타일 예시 등록**: 원하는 톤·길이의 예시 댓글을 저장해두면 생성 결과에 반영됩니다.
+- **완전 로컬 실행**: 모든 AI 기능은 로컬에서 구동되는 Ollama를 통해 처리되며, 외부 클라우드 LLM을 사용하지 않습니다.
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+## 기술 스택
 
-## Getting Started
+- **App Shell**: Electron
+- **Frontend**: React 19, React Router 7 (SSR 비활성화, SPA 모드), TypeScript, TailwindCSS 4
+- **에디터**: Tiptap
+- **AI**: Ollama(로컬 LLM)
+- **상태 관리**: Zustand
+- **패키징**: electron-builder (Windows NSIS 설치파일)
 
-### Installation
+## 사전 준비
 
-Install the dependencies:
+- Node.js, [pnpm](https://pnpm.io/)
+- [Ollama](https://ollama.com/) 설치 및 실행
+  - 댓글 생성/회차 정보 요약 모델: `EXAONE 4.0` (추천, 한국어 특화, EXAONE3.5 후속 모델)
+    - 공식 Ollama 라이브러리에는 아직 없어 커뮤니티 빌드(`ingu627/exaone4.0`)로 받아야 하며, 상업적 배포 전 라이선스 확인이 필요합니다.
 
-```bash
-npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
-npm run dev
-```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
+의존성 설치:
 
 ```bash
-npm run build
+pnpm install
 ```
 
-## Deployment
+## 개발
 
-### Docker Deployment
-
-To build and run using Docker:
+Vite 개발 서버와 Electron을 동시에 실행합니다.
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+pnpm dev
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+## 타입 체크
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+```bash
+pnpm typecheck
 ```
 
-## Styling
+## 빌드 / 배포
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+프로덕션 빌드:
 
----
+```bash
+pnpm build
+```
 
-Built with ❤️ using React Router.
+Windows 설치파일(NSIS) 생성:
+
+```bash
+pnpm dist:win
+```
+
+빌드 산출물은 `release/` 디렉터리에 `그루미-{version}-설치파일.exe` 형태로 생성됩니다.
+
+## 프로젝트 구조
+
+```
+app/                     # React Router 프론트엔드
+├── routes/              # /workroom, /manuscript, /manuscript/:id, /setting, /design-system
+├── features/
+│   ├── manuscript/      # 워크스페이스·문서 데이터 및 원고 작성 화면
+│   └── settings/        # AI 모델 설정, 댓글 스타일 예시, 휴지통
+├── components/          # 에디터, 공용 UI 컴포넌트
+├── stores/              # Zustand 스토어
+└── lib/                 # Electron IPC 연동, Ollama API 클라이언트
+
+electron/                # Electron 메인 프로세스
+├── main.ts              # 앱 진입점
+├── windows/             # BrowserWindow 설정
+├── ipc/                 # 렌더러 ↔ 메인 프로세스 통신
+├── services/            # 워크스페이스, 스토리 메모리, 댓글 생성 등 비즈니스 로직
+├── repositories/        # 로컬 파일/DB 접근
+└── db/                  # SQLite 관련 코드
+```
+
+## 주요 라우트
+
+| 경로 | 설명 |
+| --- | --- |
+| `/workroom` | 최근 작업한 워크스페이스·문서를 보여주는 대시보드 |
+| `/manuscript`, `/manuscript/:id` | 워크스페이스(폴더) 탐색 또는 문서 작성/댓글 생성 화면 |
+| `/setting` | AI 모델 설정, 댓글 스타일 예시 관리, 휴지통 |
+| `/design-system` | 내부 UI 컴포넌트 확인용 페이지 |

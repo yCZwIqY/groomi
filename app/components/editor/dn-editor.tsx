@@ -9,8 +9,9 @@ interface Props {
   content: string;
   setContent: (content: string) => void;
   setStatus: (status: { charsWithSpaces: number; charsWithoutSpaces: number }) => void;
+  editable?: boolean;
 }
-const DnEditor = ({ content, setContent, setStatus }: Props) => {
+const DnEditor = ({ content, setContent, setStatus, editable = true }: Props) => {
   const id = useId();
   const editor = useEditor({
     extensions: [
@@ -23,6 +24,7 @@ const DnEditor = ({ content, setContent, setStatus }: Props) => {
       }),
     ],
     content,
+    editable,
     onUpdate: ({ editor }) => {
       const text = editor.getText();
 
@@ -33,6 +35,10 @@ const DnEditor = ({ content, setContent, setStatus }: Props) => {
       });
     },
   });
+
+  useEffect(() => {
+    editor?.setEditable(editable);
+  }, [editor, editable]);
 
   useEffect(() => {
     if (!editor) {

@@ -57,8 +57,12 @@ export function useWorkspacePath() {
     return null;
   };
 
-  const createNewWorkspace = async (parentPath: string, workspaceName: string) => {
-    return await createWorkspace(`${parentPath}/${workspaceName}`);
+  const createNewWorkspace = async (
+    parentPath: string,
+    workspaceName: string,
+    novelType?: NovelType,
+  ) => {
+    return await createWorkspace(`${parentPath}/${workspaceName}`, novelType);
   };
 
   return {

@@ -3,9 +3,12 @@ export {};
 declare global {
   type WorkspaceNodeType = 'document' | 'workspace';
 
+  type NovelType = 'long' | 'short';
+
   type WorkspaceNodeWorkspace = {
     description?: string;
     coverPath?: string;
+    novelType?: NovelType;
     deletedAt?: string | null;
   };
 
@@ -14,6 +17,7 @@ declare global {
     subTitle?: string;
     draft?: ScriptContent;
     manuscript?: ScriptContent;
+    storyMemory?: StoryMemory;
     draftLength?: number;
     draftCharsWithoutSpaces?: number;
     manuscriptLength?: number;
@@ -27,6 +31,40 @@ declare global {
     charsWithoutSpaces: number;
     createdAt: string;
     updatedAt: string;
+  };
+
+  type StoryMemoryImportance = '상' | '중' | '하';
+
+  type StoryMemoryEvent = {
+    description: string;
+    importance: StoryMemoryImportance;
+  };
+
+  type StoryMemoryCharacter = {
+    name: string;
+    info: string;
+    keywords: string[];
+    summary: string;
+  };
+
+  type StoryMemoryPlotHook = {
+    description: string;
+    plantedAt: string;
+  };
+
+  type StoryMemory = {
+    synopsis: string;
+    events: StoryMemoryEvent[];
+    characters: StoryMemoryCharacter[];
+    plotHooks: StoryMemoryPlotHook[];
+    generatedAt: string;
+  };
+
+  type StoryMemoryDraft = {
+    synopsis: string;
+    events: StoryMemoryEvent[];
+    characters: StoryMemoryCharacter[];
+    plotHooks: StoryMemoryPlotHook[];
   };
 
   type WorkspaceNode = {
@@ -101,12 +139,14 @@ declare global {
   };
 
   type GeneratedComment = {
+    id: string;
     ageGroup: number;
     expertiseLevel: number;
     expertiseLabel: string;
     content: string;
     tone: string;
     usedContext: boolean;
+    createdAt: string;
   };
 
   type OllamaModel = {
@@ -144,7 +184,10 @@ declare global {
       selectWorkspacePath: () => Promise<WorkspaceInfo | null>;
       resetWorkspacePath: () => Promise<WorkspaceInfo>;
       updateWorkspaceRoot: (targetPath: string) => Promise<WorkspaceInfo>;
-      createWorkspace: (name: string) => Promise<{ name: string; path: string }>;
+      createWorkspace: (
+        name: string,
+        novelType?: NovelType,
+      ) => Promise<{ name: string; path: string }>;
       renameWorkspace: (
         oldWorkspacePath: string,
         newName: string,
@@ -173,8 +216,9 @@ declare global {
       removeFile: (filePath: string) => Promise<void>;
       showInFolder: (filePath: string) => Promise<void>;
 
-      indexDocument: (documentPath: string) => Promise<{ documentId: string; chunks: number }>;
-      searchDocuments: (query: string, limit?: number) => Promise<unknown[]>;
+      generateStoryMemory: (documentPath: string) => Promise<StoryMemoryDraft>;
+      saveStoryMemory: (documentPath: string, draft: StoryMemoryDraft) => Promise<StoryMemory>;
+      getLatestStoryMemory: (groupPath: string) => Promise<StoryMemory | null>;
 
       isOllamaRunning: () => Promise<boolean>;
       listOllamaModels: () => Promise<{ models: OllamaModel[] }>;
@@ -183,6 +227,11 @@ declare global {
       generateComments: (payload: GenerateCommentsPayload) => Promise<GeneratedComment[]>;
       listCommentExamples: () => Promise<CommentExample[]>;
       removeCommentExample: (id: string) => Promise<{ removed: boolean; id: string }>;
+      listGeneratedComments: (documentPath: string) => Promise<GeneratedComment[]>;
+      removeGeneratedComment: (
+        documentPath: string,
+        commentId: string,
+      ) => Promise<{ removed: boolean; id: string }>;
     };
   }
 }

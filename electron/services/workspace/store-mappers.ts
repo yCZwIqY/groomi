@@ -22,6 +22,7 @@ export function createEmptyStore(workspacePath: string): WorkspaceStore {
       name: path.basename(workspacePath),
       description: '',
       coverPath: '',
+      novelType: 'long',
       createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,

@@ -1,17 +1,37 @@
 import type sqlite3 from 'sqlite3';
 
 import { all, run } from '../db/connection.js';
-import type { WorkspaceStoreGroup, WorkspaceStoreRoot } from '../services/workspace/store-types.js';
+import type {
+  NovelType,
+  WorkspaceStoreGroup,
+  WorkspaceStoreRoot,
+} from '../services/workspace/store-types.js';
 
 export type GroupInfoRow = {
   nodeId: string;
   description: string | null;
   coverPath: string | null;
+  novelType: string | null;
+};
+
+type TableInfoRow = {
+  name: string;
 };
 
 export function createGroupInfoRepository(db: sqlite3.Database) {
+  async function ensureGroupInfoColumns() {
+    const columns = await all<TableInfoRow>(db, 'PRAGMA table_info(group_info)');
+    const columnNames = new Set(columns.map((column) => column.name));
+
+    if (!columnNames.has('novelType')) {
+      await run(db, 'ALTER TABLE group_info ADD COLUMN novelType TEXT');
+    }
+  }
+
   return {
-    findAllGroupInfo() {
+    async findAllGroupInfo() {
+      await ensureGroupInfoColumns();
+
       return all<GroupInfoRow>(db, 'SELECT * FROM group_info');
     },
 
@@ -19,28 +39,33 @@ export function createGroupInfoRepository(db: sqlite3.Database) {
       return run(db, 'DELETE FROM group_info');
     },
 
-    insertGroupInfo(group: WorkspaceStoreGroup | WorkspaceStoreRoot) {
-      return run(db, 'INSERT INTO group_info (nodeId, description, coverPath) VALUES (?, ?, ?)', [
-        group.id,
-        group.description ?? '',
-        group.coverPath ?? '',
-      ]);
+    async insertGroupInfo(group: WorkspaceStoreGroup | WorkspaceStoreRoot) {
+      await ensureGroupInfoColumns();
+
+      return run(
+        db,
+        'INSERT INTO group_info (nodeId, description, coverPath, novelType) VALUES (?, ?, ?, ?)',
+        [group.id, group.description ?? '', group.coverPath ?? '', group.novelType ?? 'long'],
+      );
     },
 
-    updateGroupInfo(
+    async updateGroupInfo(
       nodeId: string,
-      data: Partial<Pick<WorkspaceStoreGroup, 'description' | 'coverPath'>>,
+      data: Partial<Pick<WorkspaceStoreGroup, 'description' | 'coverPath'> & { novelType: NovelType }>,
     ) {
+      await ensureGroupInfoColumns();
+
       return run(
         db,
         `
           UPDATE group_info
           SET
             description = COALESCE(?, description),
-            coverPath = COALESCE(?, coverPath)
+            coverPath = COALESCE(?, coverPath),
+            novelType = COALESCE(?, novelType)
           WHERE nodeId = ?
         `,
-        [data.description ?? null, data.coverPath ?? null, nodeId],
+        [data.description ?? null, data.coverPath ?? null, data.novelType ?? null, nodeId],
       );
     },
   };

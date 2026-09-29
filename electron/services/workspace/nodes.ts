@@ -1,6 +1,8 @@
 import path from 'node:path';
 import type {
+  NovelType,
   StoredDocumentContent,
+  StoryMemory,
   WorkspaceStore,
   WorkspaceStoreDocument,
   WorkspaceStoreGroup,
@@ -21,6 +23,7 @@ export type WorkspaceNodeData = {
   workspace?: {
     description: string;
     coverPath: string;
+    novelType: NovelType;
     deletedAt: string | null;
   };
   document?: {
@@ -28,6 +31,7 @@ export type WorkspaceNodeData = {
     subTitle?: string;
     draft?: StoredDocumentContent['draft'];
     manuscript?: StoredDocumentContent['manuscript'];
+    storyMemory?: StoryMemory;
     draftLength: number;
     manuscriptLength: number;
     deletedAt: string | null;
@@ -55,6 +59,7 @@ export function buildWorkspaceNode(
     workspace: {
       description: entity.description ?? '',
       coverPath: entity.coverPath ?? '',
+      novelType: entity.novelType ?? 'long',
       deletedAt: entity.deletedAt ?? null,
     },
     children,
@@ -83,6 +88,7 @@ export function buildDocumentNode(
       subTitle: content?.subTitle ?? entity.subTitle,
       draft: content?.draft,
       manuscript: content?.manuscript,
+      storyMemory: content?.storyMemory,
       draftLength: content?.draft?.content?.length ?? entity.draftLength ?? 0,
       manuscriptLength: content?.manuscript?.content?.length ?? entity.manuscriptLength ?? 0,
       deletedAt: entity.deletedAt ?? null,

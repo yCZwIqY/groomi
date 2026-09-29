@@ -4,7 +4,7 @@ import { registerWorkspaceIpcHandlers } from './workspace.js';
 import { registerDocumentIpcHandlers } from './document.js';
 import { createWorkspaceService } from '../services/workspace-service.js';
 import type { App } from 'electron';
-import { registerEmbeddingIPCHandler } from './embedding.js';
+import { registerStoryMemoryIpcHandlers } from './story-memory.js';
 import { registerCommentIpcHandlers } from './comment.js';
 import { registerOllamaIpcHandlers } from './ollama.js';
 
@@ -15,7 +15,7 @@ export function registerIpcHandlers(app: App) {
   registerWorkspaceIpcHandlers(app, workspaceService);
   registerDocumentIpcHandlers(workspaceService);
   registerSettingIpcHandlers(workspaceService);
-  registerEmbeddingIPCHandler(workspaceService);
+  registerStoryMemoryIpcHandlers(workspaceService);
   registerCommentIpcHandlers(workspaceService);
   registerOllamaIpcHandlers();
 }

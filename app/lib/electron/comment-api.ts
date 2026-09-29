@@ -15,3 +15,11 @@ export async function listCommentExamples() {
 export async function removeCommentExample(id: string) {
   return requireElectronApi().removeCommentExample(id);
 }
+
+export async function listGeneratedComments(documentPath: string) {
+  return requireElectronApi().listGeneratedComments(documentPath);
+}
+
+export async function removeGeneratedComment(documentPath: string, commentId: string) {
+  return requireElectronApi().removeGeneratedComment(documentPath, commentId);
+}

@@ -5,7 +5,8 @@ import { createWorkspaceActions } from './workspace-actions.js';
 import { createWorkspaceServiceContext } from './workspace-service-context.js';
 import type { App } from 'electron';
 import { createCommentExampleActions } from './comment/comment-example-actions.js';
-import { createDocumentEmbeddingAction } from './embedding/document-embedding-action.js';
+import { createCommentStoreActions } from './comment/comment-store-actions.js';
+import { createStoryMemoryActions } from './story-memory/story-memory-actions.js';
 import { createCommentGenerationActions } from './comment/comment-generation-actions.js';
 
 export function createWorkspaceService(app: Pick<App, 'getPath'>) {
@@ -14,9 +15,10 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
   const documentActions = createDocumentActions(context);
   const fileActions = createFileActions(context);
   const settingActions = createSettingActions(context);
-  const documentEmbeddingAction = createDocumentEmbeddingAction(context);
+  const storyMemoryActions = createStoryMemoryActions(context);
   const commentGenerationActions = createCommentGenerationActions(context);
   const commentExampleActions = createCommentExampleActions(context);
+  const commentStoreActions = createCommentStoreActions(context);
 
   return {
     addRecentVisit: context.addRecentVisit,
@@ -51,14 +53,19 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
     updateWorkflowInfo: workspaceActions.updateWorkflowInfo,
     updateWorkspaceInfo: workspaceActions.updateWorkspaceInfo,
 
-    //documentEmbeddingAction
-    indexDocument: documentEmbeddingAction.indexDocument,
-    searchDocuments: documentEmbeddingAction.searchDocuments,
+    //storyMemoryActions
+    generateStoryMemory: storyMemoryActions.generateStoryMemory,
+    saveStoryMemory: storyMemoryActions.saveStoryMemory,
+    getLatestStoryMemory: storyMemoryActions.getLatestStoryMemory,
 
     //commentGenerationActions
     addCommentExample: commentExampleActions.addCommentExample,
     generateComments: commentGenerationActions.generateComments,
     listCommentExamples: commentExampleActions.listCommentExamples,
     removeCommentExample: commentExampleActions.removeCommentExample,
+
+    //commentStoreActions
+    listGeneratedComments: commentStoreActions.listGeneratedComments,
+    removeGeneratedComment: commentStoreActions.removeGeneratedComment,
   };
 }

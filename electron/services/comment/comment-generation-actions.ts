@@ -1,3 +1,4 @@
+import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import ollama from 'ollama';
 import { readDocumentContent } from '../workspace/store.js';
 import { getNovelType, sortChaptersByCreatedAt } from '../story-memory/story-memory-actions.js';
@@ -90,101 +91,115 @@ function buildPersonaSlots({
 
 export function createCommentGenerationActions(context: WorkspaceServiceContext) {
   async function generateComments(payload: GenerateCommentsPayload) {
-    const { workspacePath, store, node } = await context.getStoreNodeByPath(payload.documentPath);
+    const { workspacePath, node, model, personaSlots, systemPrompt, userPrompt } =
+      await serializeWorkspaceOperation(async () => {
+        const { workspacePath, store, node } = await context.getStoreNodeByPath(
+          payload.documentPath,
+        );
 
-    if (!node || node.type !== 'document') {
-      throw new Error('댓글을 생성할 문서를 찾을 수 없습니다.');
-    }
+        if (!node || node.type !== 'document') {
+          throw new Error('댓글을 생성할 문서를 찾을 수 없습니다.');
+        }
 
-    const setting = await context.withWorkspaceRepositories(
-      workspacePath,
-      async ({ settingInfo }) => settingInfo.findSettingInfo(),
-    );
+        const setting = await context.withWorkspaceRepositories(
+          workspacePath,
+          async ({ settingInfo }) => settingInfo.findSettingInfo(),
+        );
 
-    if (!setting.selectedLLMModel) {
-      throw new Error('LLM 모델이 선택되지 않았습니다.');
-    }
+        if (!setting.selectedLLMModel) {
+          throw new Error('LLM 모델이 선택되지 않았습니다.');
+        }
 
-    const content = await readDocumentContent(workspacePath, node.id);
+        const content = await readDocumentContent(workspacePath, node.id);
 
-    // 댓글의 직접 대상이 되는 현재 스크립트.
-    const targetScript = [
-      content.title,
-      content.subTitle,
-      content.draft?.content,
-      content.manuscript?.content,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-
-    // 단편(독립 회차) 그룹은 화차 간 맥락을 공유하지 않는다.
-    const isStandaloneGroup = getNovelType(store, node.parentId ?? null) === 'short';
-
-    // 같은 부모 그룹 안에서 화차 순서(n-2/n-1)를 계산해 맥락을 구성한다.
-    const chapters = isStandaloneGroup
-      ? []
-      : sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
-    const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
-    const earlierSynopsisChapter = currentIndex - 2 >= 0 ? chapters[currentIndex - 2] : null;
-    const previousChapter = currentIndex - 1 >= 0 ? chapters[currentIndex - 1] : null;
-
-    const earlierSynopsis = earlierSynopsisChapter
-      ? ((await readDocumentContent(workspacePath, earlierSynopsisChapter.id)).storyMemory
-          ?.synopsis ?? '')
-      : '';
-
-    const previousChapterContent = previousChapter
-      ? await readDocumentContent(workspacePath, previousChapter.id)
-      : null;
-    const previousChapterScript = previousChapterContent
-      ? [
-          previousChapterContent.title,
-          previousChapterContent.subTitle,
-          previousChapterContent.draft?.content,
-          previousChapterContent.manuscript?.content,
+        // 댓글의 직접 대상이 되는 현재 스크립트.
+        const targetScript = [
+          content.title,
+          content.subTitle,
+          content.draft?.content,
+          content.manuscript?.content,
         ]
           .filter(Boolean)
-          .join('\n\n')
-      : '';
-    const majorEvents = previousChapterContent?.storyMemory?.events ?? [];
-    const characters = previousChapterContent?.storyMemory?.characters ?? [];
+          .join('\n\n');
 
-    const savedStyleExamples = await context.withWorkspaceRepositories(
-      workspacePath,
-      async ({ commentExamples }) =>
-        commentExamples.findStyleExamples({
-          startAge: payload.startAge,
-          endAge: payload.endAge,
-          expertise: payload.expertise,
-          limit: MAX_SAVED_STYLE_EXAMPLES,
-        }),
-    );
-    const styleExamples = [
-      ...filterDefaultStyleExamples({
-        defaultExamples: getDefaultCommentStyleExamples(),
-        startAge: payload.startAge,
-        endAge: payload.endAge,
-        expertise: payload.expertise,
-      }),
-      ...savedStyleExamples,
-    ];
+        // 단편(독립 회차) 그룹은 화차 간 맥락을 공유하지 않는다.
+        const isStandaloneGroup = getNovelType(store, node.parentId ?? null) === 'short';
 
-    const personaSlots = buildPersonaSlots(payload);
+        // 같은 부모 그룹 안에서 화차 순서(n-2/n-1)를 계산해 맥락을 구성한다.
+        const chapters = isStandaloneGroup
+          ? []
+          : sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
+        const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
+        const earlierSynopsisChapter = currentIndex - 2 >= 0 ? chapters[currentIndex - 2] : null;
+        const previousChapter = currentIndex - 1 >= 0 ? chapters[currentIndex - 1] : null;
 
-    const { systemPrompt, userPrompt } = buildCommentPrompt({
-      ...payload,
-      targetTitle: content.title ?? node.name,
-      targetScript,
-      earlierSynopsis,
-      previousChapterScript,
-      majorEvents,
-      characters,
-      styleExamples,
-      personaSlots,
-    });
+        const earlierSynopsis = earlierSynopsisChapter
+          ? ((await readDocumentContent(workspacePath, earlierSynopsisChapter.id)).storyMemory
+              ?.synopsis ?? '')
+          : '';
+
+        const previousChapterContent = previousChapter
+          ? await readDocumentContent(workspacePath, previousChapter.id)
+          : null;
+        const previousChapterScript = previousChapterContent
+          ? [
+              previousChapterContent.title,
+              previousChapterContent.subTitle,
+              previousChapterContent.draft?.content,
+              previousChapterContent.manuscript?.content,
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+          : '';
+        const majorEvents = previousChapterContent?.storyMemory?.events ?? [];
+        const characters = previousChapterContent?.storyMemory?.characters ?? [];
+
+        const savedStyleExamples = await context.withWorkspaceRepositories(
+          workspacePath,
+          async ({ commentExamples }) =>
+            commentExamples.findStyleExamples({
+              startAge: payload.startAge,
+              endAge: payload.endAge,
+              expertise: payload.expertise,
+              limit: MAX_SAVED_STYLE_EXAMPLES,
+            }),
+        );
+        const styleExamples = [
+          ...filterDefaultStyleExamples({
+            defaultExamples: getDefaultCommentStyleExamples(),
+            startAge: payload.startAge,
+            endAge: payload.endAge,
+            expertise: payload.expertise,
+          }),
+          ...savedStyleExamples,
+        ];
+
+        const personaSlots = buildPersonaSlots(payload);
+
+        const { systemPrompt, userPrompt } = buildCommentPrompt({
+          ...payload,
+          targetTitle: content.title ?? node.name,
+          targetScript,
+          earlierSynopsis,
+          previousChapterScript,
+          majorEvents,
+          characters,
+          styleExamples,
+          personaSlots,
+        });
+
+        return {
+          workspacePath,
+          node,
+          model: setting.selectedLLMModel,
+          personaSlots,
+          systemPrompt,
+          userPrompt,
+        };
+      });
 
     const response = await ollama.chat({
-      model: setting.selectedLLMModel,
+      model,
       messages: [
         {
           role: 'system',
@@ -200,9 +215,8 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
 
     const parsed = parseGeneratedComments(response.message.content, personaSlots);
 
-    const savedRows = await context.withWorkspaceRepositories(
-      workspacePath,
-      async ({ documentComments }) =>
+    const savedRows = await serializeWorkspaceOperation(() =>
+      context.withWorkspaceRepositories(workspacePath, async ({ documentComments }) =>
         documentComments.insertComments(
           node.id,
           parsed.comments.map((comment) => ({
@@ -214,6 +228,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
             usedContext: comment.usedContext,
           })),
         ),
+      ),
     );
 
     return savedRows.map(toGeneratedComment);
@@ -430,9 +445,7 @@ function formatStyleExampleMeta(example: {
   expertiseLevel?: number | null;
 }) {
   const meta = [
-    example.ageGroup !== null && example.ageGroup !== undefined
-      ? `${example.ageGroup}대`
-      : null,
+    example.ageGroup !== null && example.ageGroup !== undefined ? `${example.ageGroup}대` : null,
     example.expertiseLevel !== null && example.expertiseLevel !== undefined
       ? `전문성 ${example.expertiseLevel}`
       : null,

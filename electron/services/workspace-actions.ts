@@ -1,18 +1,28 @@
 import path from 'node:path';
 
 import { ensureStore } from './workspace/store.js';
-import { buildNodeInfo, buildRootWorkspaceNode, buildTrashNodes, buildTreeNodes } from './workspace/nodes.js';
+import {
+  buildNodeInfo,
+  buildRootWorkspaceNode,
+  buildTrashNodes,
+  buildTreeNodes,
+} from './workspace/nodes.js';
 import {
   collectDocumentIdsByGroupIds,
   collectGroupAncestorIds,
   collectGroupDescendantIds,
   normalizePath,
   now,
+  nextDeletionTime,
   sanitizeNodeName,
 } from './workspace/shared.js';
-import { withTransaction } from '../db/connection.js';
+import { run, withTransaction } from '../db/connection.js';
 import type { WorkspaceServiceContext } from './workspace-service-context.js';
-import type { NovelType, WorkspaceStoreDocument, WorkspaceStoreGroup } from './workspace/store-types.js';
+import type {
+  NovelType,
+  WorkspaceStoreDocument,
+  WorkspaceStoreGroup,
+} from './workspace/store-types.js';
 import type { WorkspaceUpdatePayload } from './workspace/payloads.js';
 
 export function createWorkspaceActions(context: WorkspaceServiceContext) {
@@ -53,12 +63,15 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
       deletedAt: null,
     };
 
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, groupInfo, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.insertNode(store, newGroup, path.join(parentPath, safeName));
-        await groupInfo.insertGroupInfo(newGroup);
-      });
-    });
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, groupInfo, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await workspaceNodes.insertNode(store, newGroup, path.join(parentPath, safeName));
+          await groupInfo.insertGroupInfo(newGroup);
+        });
+      },
+    );
 
     return {
       id: newGroup.id,
@@ -99,16 +112,27 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     }
 
     const removedGroupIds = collectGroupDescendantIds(store.groups, node.id);
-    const deletedAt = now();
+    const deletedAt = nextDeletionTime([...store.groups, ...store.documents]);
     const removedDocumentIds = collectDocumentIdsByGroupIds(store.documents, removedGroupIds);
     const removedNodeIds = new Set([...removedGroupIds, ...removedDocumentIds]);
 
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, recentVisits, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.markNodesDeleted([...removedNodeIds], deletedAt, deletedAt);
-        await recentVisits.deleteRecentVisitsByIds([...removedNodeIds]);
-      });
-    });
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, recentVisits, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await workspaceNodes.markNodesDeleted(
+            [...removedNodeIds].filter(
+              (id) =>
+                !store.groups.find((group) => group.id === id)?.deletedAt &&
+                !store.documents.find((document) => document.id === id)?.deletedAt,
+            ),
+            deletedAt,
+            deletedAt,
+          );
+          await recentVisits.deleteRecentVisitsByIds([...removedNodeIds]);
+        });
+      },
+    );
 
     return {
       removed: true,
@@ -123,29 +147,40 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     if (!node || node.type !== 'workspace') {
       throw new Error('영구 삭제할 그룹을 찾을 수 없습니다.');
     }
+    if (!node.deletedAt) throw new Error('휴지통에 있는 그룹만 영구 삭제할 수 있습니다.');
 
     const removedGroupIds = collectGroupDescendantIds(store.groups, node.id);
-    const removedGroups = store.groups.filter((group: WorkspaceStoreGroup) => removedGroupIds.has(group.id));
+    const removedGroups = store.groups.filter((group: WorkspaceStoreGroup) =>
+      removedGroupIds.has(group.id),
+    );
     const removedDocuments = store.documents.filter((document: WorkspaceStoreDocument) =>
       removedGroupIds.has(document.parentId ?? ''),
     );
-    const removedDocumentIds = new Set(removedDocuments.map((document: WorkspaceStoreDocument) => document.id));
+    const removedDocumentIds = new Set(
+      removedDocuments.map((document: WorkspaceStoreDocument) => document.id),
+    );
     const removedNodeIds = new Set([...removedGroupIds, ...removedDocumentIds]);
 
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, recentVisits, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await recentVisits.deleteRecentVisitsByIds([...removedNodeIds]);
+          await workspaceNodes.deleteNodesByIds([...removedNodeIds]);
+          for (const id of removedDocumentIds) {
+            await run(
+              db,
+              'INSERT OR IGNORE INTO pending_document_deletions (documentId) VALUES (?)',
+              [id],
+            );
+          }
+        });
+      },
+    );
     for (const group of removedGroups) {
-      await context.removeCoverImage(group.coverPath);
+      await context.removeCoverImage(group.coverPath).catch(console.error);
     }
-
-    for (const document of removedDocuments) {
-      await context.removeDocumentContentFile(workspacePath, document.id);
-    }
-
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, recentVisits, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await recentVisits.deleteRecentVisitsByIds([...removedNodeIds]);
-        await workspaceNodes.deleteNodesByIds([...removedNodeIds]);
-      });
-    });
+    await context.cleanupDeletedDocumentFiles(workspacePath);
 
     return {
       removed: true,
@@ -169,14 +204,20 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
       ...restoredAncestorGroupIds,
     ]);
     const restoredDocumentIds = collectDocumentIdsByGroupIds(
-      store.documents,
+      store.documents.filter((document) => document.deletedAt === node.deletedAt),
       restoredSubtreeGroupIds,
     );
     const restoredAt = now();
 
     await context.withWorkspaceRepositories(workspacePath, async ({ workspaceNodes }) => {
       await workspaceNodes.markNodesDeleted(
-        [...restoredTargetGroupIds, ...restoredDocumentIds],
+        [
+          ...[...restoredTargetGroupIds].filter(
+            (id) =>
+              restoredAncestorGroupIds.has(id) || groupsById.get(id)?.deletedAt === node.deletedAt,
+          ),
+          ...restoredDocumentIds,
+        ],
         null,
         restoredAt,
       );
@@ -226,22 +267,29 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
         updatedAt,
       };
 
-      await context.withWorkspaceRepositories(workspacePath, async ({ db, groupInfo, workspaceNodes }) => {
-        await withTransaction(db, async () => {
-          await workspaceNodes.updateNodeDetails(store.workspace.id, {
-            name: nextWorkspace.name,
-            path: workspacePath,
-            updatedAt,
+      await context.withWorkspaceRepositories(
+        workspacePath,
+        async ({ db, groupInfo, workspaceNodes }) => {
+          await withTransaction(db, async () => {
+            await workspaceNodes.updateNodeDetails(store.workspace.id, {
+              name: nextWorkspace.name,
+              path: workspacePath,
+              updatedAt,
+            });
+            if ('deletedAt' in data) {
+              await workspaceNodes.markNodesDeleted(
+                [store.workspace.id],
+                nextWorkspace.deletedAt,
+                updatedAt,
+              );
+            }
+            await groupInfo.updateGroupInfo(store.workspace.id, {
+              description: nextWorkspace.description,
+              coverPath: nextWorkspace.coverPath,
+            });
           });
-          if ('deletedAt' in data) {
-            await workspaceNodes.markNodesDeleted([store.workspace.id], nextWorkspace.deletedAt, updatedAt);
-          }
-          await groupInfo.updateGroupInfo(store.workspace.id, {
-            description: nextWorkspace.description,
-            coverPath: nextWorkspace.coverPath,
-          });
-        });
-      });
+        },
+      );
 
       return buildRootWorkspaceNode(workspacePath, {
         ...store,
@@ -271,22 +319,25 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
       updatedAt,
     };
 
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, groupInfo, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.updateNodeDetails(nextGroup.id, {
-          name: nextGroup.name,
-          path: path.join(targetNode.parentPath, nextGroup.name),
-          updatedAt,
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, groupInfo, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await workspaceNodes.updateNodeDetails(nextGroup.id, {
+            name: nextGroup.name,
+            path: path.join(targetNode.parentPath, nextGroup.name),
+            updatedAt,
+          });
+          if ('deletedAt' in data) {
+            await workspaceNodes.markNodesDeleted([nextGroup.id], nextGroup.deletedAt, updatedAt);
+          }
+          await groupInfo.updateGroupInfo(nextGroup.id, {
+            description: nextGroup.description,
+            coverPath: nextGroup.coverPath,
+          });
         });
-        if ('deletedAt' in data) {
-          await workspaceNodes.markNodesDeleted([nextGroup.id], nextGroup.deletedAt, updatedAt);
-        }
-        await groupInfo.updateGroupInfo(nextGroup.id, {
-          description: nextGroup.description,
-          coverPath: nextGroup.coverPath,
-        });
-      });
-    });
+      },
+    );
 
     const nextStore = await ensureStore(workspacePath);
     return context.getUpdatedNodeById(workspacePath, nextStore, targetNode.id);
@@ -351,4 +402,3 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     updateWorkspaceInfo,
   };
 }
-

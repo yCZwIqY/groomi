@@ -19,7 +19,18 @@ protocol.registerSchemesAsPrivileged([
 
 registerIpcHandlers(app);
 
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+app.on('second-instance', () => {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (window) {
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  }
+});
+
 app.whenReady().then(() => {
+  if (!ownsInstance) return;
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });

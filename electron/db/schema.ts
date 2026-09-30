@@ -1,7 +1,9 @@
-export const WORKSPACE_SCHEMA_VERSION = 1;
+export const WORKSPACE_SCHEMA_VERSION = 2;
 
 export const WORKSPACE_SCHEMA_STATEMENTS = [
   'PRAGMA foreign_keys = ON',
+  `CREATE TABLE IF NOT EXISTS document_file_commits (documentId TEXT PRIMARY KEY, token TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS pending_document_deletions (documentId TEXT PRIMARY KEY)`,
   `
     CREATE TABLE IF NOT EXISTS setting_info (
       id TEXT PRIMARY KEY CHECK (id = 'default'),

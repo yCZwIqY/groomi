@@ -1,6 +1,7 @@
 import TrashNode from '~/features/settings/trash-node/trash-node';
 import AiSetting from '~/features/settings/ai-setting/ai-setting';
 import CommentStyleExampleSetting from '~/features/settings/ai-setting/comment-style-example-setting';
+import WorkspaceBackup from '~/features/settings/workspace-backup';
 
 const Setting = () => {
   return (
@@ -16,6 +17,7 @@ const Setting = () => {
         <TrashNode />
       </div>
       <CommentStyleExampleSetting />
+      <WorkspaceBackup />
     </div>
   );
 };

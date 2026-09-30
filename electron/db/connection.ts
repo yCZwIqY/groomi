@@ -72,6 +72,12 @@ export async function withDatabase<Result>(
 }
 
 export async function initializeSchema(db: sqlite3.Database) {
+  const versions = await all<{ user_version: number }>(db, 'PRAGMA user_version');
+  if ((versions[0]?.user_version ?? 0) > WORKSPACE_SCHEMA_VERSION) {
+    throw new Error(
+      '이 작업 폴더는 더 최신 버전의 그루미에서 저장했습니다. 앱을 업데이트해주세요.',
+    );
+  }
   for (const statement of WORKSPACE_SCHEMA_STATEMENTS) {
     await run(db, statement);
   }

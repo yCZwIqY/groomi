@@ -77,6 +77,35 @@ export function registerWorkspaceIpcHandlers(
     return workspaceInfo;
   });
 
+  secureHandle(channels.workspace.backup, async () => {
+    const destination = await dialog.showOpenDialog({
+      title: '백업을 보관할 폴더 선택',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (destination.canceled || !destination.filePaths[0]) return null;
+    return workspaceService.backupWorkspace(destination.filePaths[0]);
+  });
+
+  secureHandle(channels.workspace.restoreBackup, async () => {
+    const source = await dialog.showOpenDialog({
+      title: '그루미 백업 폴더 선택',
+      properties: ['openDirectory'],
+    });
+    if (source.canceled || !source.filePaths[0]) return null;
+    const destination = await dialog.showOpenDialog({
+      title: '복원할 새 작업 폴더의 상위 폴더 선택',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (destination.canceled || !destination.filePaths[0]) return null;
+    const result = await workspaceService.restoreWorkspaceBackup(
+      source.filePaths[0],
+      destination.filePaths[0],
+    );
+    startWorkspaceWatcher(result.path);
+    scheduleWorkspaceTreeChanged();
+    return result;
+  });
+
   secureHandle(channels.workspace.initCurrent, async () => {
     const workspaceInfo = await workspaceService.initCurrentWorkspace();
     startWorkspaceWatcher(workspaceInfo.path);
@@ -145,7 +174,9 @@ export function registerWorkspaceIpcHandlers(
   });
 
   secureHandle(channels.workspace.updateRoot, async (_, targetPath) => {
-    const workspaceInfo = await workspaceService.updateRoot(requireString(targetPath, 'targetPath'));
+    const workspaceInfo = await workspaceService.updateRoot(
+      requireString(targetPath, 'targetPath'),
+    );
     startWorkspaceWatcher(workspaceInfo.path);
     scheduleWorkspaceTreeChanged();
     return workspaceInfo;

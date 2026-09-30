@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import {
-  getElectronMeta,
-  isElectronReady,
-} from '~/lib/electron/client';
+import { getElectronMeta, isElectronReady } from '~/lib/electron/client';
 import {
   createWorkspace,
   initCurrentWorkspace,
+  getCurrentWorkspacePath,
+  onWorkspaceTreeChanged,
   selectWorkspacePath,
   updateWorkspaceRootPath,
 } from '~/lib/electron/workspace-api';
@@ -32,6 +31,22 @@ export function useWorkspacePath() {
       .catch((error: unknown) => {
         setStatusText(error instanceof Error ? error.message : 'workspace init failed');
       });
+  }, []);
+
+  useEffect(() => {
+    if (!isElectronReady()) return;
+    let active = true;
+    const unsubscribe = onWorkspaceTreeChanged(() => {
+      void getCurrentWorkspacePath()
+        .then((result) => {
+          if (active) setWorkspacePath(result.path);
+        })
+        .catch(() => {});
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const changeWorkspacePath = async () => {
@@ -70,6 +85,6 @@ export function useWorkspacePath() {
     statusText,
     workspacePath,
     updateWorkspaceRoot,
-    createNewWorkspace
+    createNewWorkspace,
   };
 }

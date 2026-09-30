@@ -8,9 +8,10 @@ const channels = {
     remove: 'file:remove',
     saveImage: 'file:save-image',
     showInFolder: 'show-in-folder',
-
   },
   workspace: {
+    backup: 'workspace:backup',
+    restoreBackup: 'workspace:restore-backup',
     getWorkspaceTree: 'workspace:get-tree',
     getTrashItems: 'workspace:get-trash-items',
     treeChanged: 'workspace:tree-changed',
@@ -28,6 +29,7 @@ const channels = {
     updateWorkspaceInfo: 'workspace:update-info',
   },
   document: {
+    recoverDocument: 'document:recover',
     createDocument: 'document:create',
     getDocument: 'document:get',
     removeDocument: 'document:remove',
@@ -56,7 +58,7 @@ const channels = {
     removeExample: 'comment:remove-example',
     listGenerated: 'comment:list-generated',
     removeGenerated: 'comment:remove-generated',
-  }
+  },
 };
 
 export = channels;

@@ -3,6 +3,8 @@ import { AiOutlineCalendar, AiOutlineClockCircle } from 'react-icons/ai';
 import DnInput from '~/components/common/inputs/dn-input';
 import { updateDocument } from '~/lib/electron/document-api';
 import { formatDate } from '../../../../utils/date-utils';
+import { flushPendingDocument } from '~/lib/pending-document';
+import { showToast } from '~/lib/toast-manager';
 
 interface Props {
   workspaceData: WorkspaceNode;
@@ -22,16 +24,19 @@ const DocumentInfo = ({ workspaceData, onUpdated }: Props) => {
       setTitle('');
       setSubTitle('');
     };
-  }, [workspaceData]);
+  }, [workspaceData.path, workspaceData.document?.title, workspaceData.document?.subTitle]);
 
   const handleUpdateDocumentData = async (data: DocumentUpdatePayload) => {
     if (!workspaceData?.path) {
       return;
     }
-    const updatedWorkspace = await updateDocument(workspaceData?.path, {
-      ...data,
-    });
-    if (updatedWorkspace) onUpdated?.(updatedWorkspace);
+    try {
+      await flushPendingDocument();
+      const updatedWorkspace = await updateDocument(workspaceData.path, data);
+      if (updatedWorkspace) onUpdated?.(updatedWorkspace);
+    } catch {
+      showToast('제목 저장에 실패했습니다. 입력 내용은 유지됩니다.', 'danger');
+    }
   };
 
   return (
@@ -85,7 +90,6 @@ const DocumentInfo = ({ workspaceData, onUpdated }: Props) => {
             {formatDate(new Date(workspaceData?.updatedAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
           </div>
         </div>
-
       </div>
     </section>
   );

@@ -1,5 +1,8 @@
 import DnEditor from '~/components/editor/dn-editor';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useDocumentSave } from './hooks/use-document-save';
+import { getOllamaRunning } from '~/lib/ollama-api';
+import { getSettingInfo } from '~/lib/electron/setting-api';
 import DnSwitch from '~/components/common/switch/dn-switch';
 import type { Option } from '~/components';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -21,7 +24,6 @@ type DocumentTextStatus = {
 };
 
 type ShowType = 'DRAFT' | 'MANUSCRIPT' | 'SPLIT';
-const AUTOSAVE_DELAY_MS = 1_000;
 const ShowTypeOptions: Option<ShowType>[] = [
   {
     value: 'DRAFT',
@@ -48,16 +50,18 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     manuscriptStatus,
     setManuscriptStatus,
     resetContent,
-    handleUpdate,
   } = useDocumentContent();
   const [showType, setShowType] = useState<ShowType>('SPLIT');
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [saveError, setSaveError] = useState(false);
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
-  const initializedDocumentPath = useRef<string | null>(null);
-  const latestContent = useRef({ draft, manuscript });
-  latestContent.current = { draft, manuscript };
+  const { saving, dirty, saveError, clearSaveError, save } = useDocumentSave({
+    workspaceData,
+    draft,
+    manuscript,
+    draftStatus,
+    manuscriptStatus,
+    resetContent,
+    onUpdated,
+  });
 
   const startTask = useBackgroundTasks((state) => state.startTask);
   const finishTask = useBackgroundTasks((state) => state.finishTask);
@@ -66,82 +70,6 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   );
   const clearPendingStoryMemory = useBackgroundTasks((state) => state.clearPendingStoryMemory);
   const isBusy = useIsDocumentBusy(workspaceData.path);
-
-  useEffect(() => {
-    resetContent(workspaceData);
-    initializedDocumentPath.current = workspaceData.path;
-    setDirty(false);
-    setSaveError(false);
-
-    return () => {
-      resetContent();
-    };
-  }, [
-    workspaceData.path,
-    workspaceData?.document?.manuscript?.content,
-    workspaceData?.document?.draft?.content,
-  ]);
-
-  useEffect(() => {
-    if (initializedDocumentPath.current !== workspaceData.path) {
-      return;
-    }
-
-    const storedDraft = workspaceData.document?.draft?.content ?? '';
-    const storedManuscript = workspaceData.document?.manuscript?.content ?? '';
-    setDirty(draft !== storedDraft || manuscript !== storedManuscript);
-  }, [
-    draft,
-    manuscript,
-    workspaceData.path,
-    workspaceData.document?.draft?.content,
-    workspaceData.document?.manuscript?.content,
-  ]);
-
-  useEffect(() => {
-    if (!dirty || saving || isBusy || saveError) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      const savingContent = { draft, manuscript };
-      setSaving(true);
-      setSaveError(false);
-      void handleUpdate(workspaceData)
-        .then((updatedWorkspace) => {
-          const contentIsStillCurrent =
-            latestContent.current.draft === savingContent.draft &&
-            latestContent.current.manuscript === savingContent.manuscript;
-
-          if (updatedWorkspace && contentIsStillCurrent) {
-            onUpdated?.(updatedWorkspace);
-            setDirty(false);
-          }
-        })
-        .catch(() => {
-          setSaveError(true);
-        })
-        .finally(() => {
-          setSaving(false);
-        });
-    }, AUTOSAVE_DELAY_MS);
-
-    return () => window.clearTimeout(timeout);
-  }, [dirty, draft, manuscript, isBusy, saveError, workspaceData.path]);
-
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!dirty && !saving) {
-        return;
-      }
-
-      event.preventDefault();
-      event.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [dirty, saving]);
 
   useEffect(() => {
     if (!pendingStoryMemoryDraft) {
@@ -157,34 +85,21 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       return;
     }
 
-    setSaving(true);
-    setSaveError(false);
-    let updatedWorkspace: WorkspaceNode | null = null;
-    const savingContent = { draft, manuscript };
-
     try {
-      updatedWorkspace = await handleUpdate(workspaceData);
-      const contentIsStillCurrent =
-        latestContent.current.draft === savingContent.draft &&
-        latestContent.current.manuscript === savingContent.manuscript;
-
-      if (updatedWorkspace && contentIsStillCurrent) {
-        onUpdated?.(updatedWorkspace);
-        setDirty(false);
-      }
+      await save();
     } catch {
-      setSaveError(true);
-      showToast('저장에 실패했습니다.', 'danger');
-      return;
-    } finally {
-      setSaving(false);
-    }
-
-    if (!updatedWorkspace?.path) {
+      showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
       return;
     }
-
     showToast('저장완료', 'success');
+    // Saving works offline; AI is optional and only starts when configured.
+    try {
+      const setting = await getSettingInfo();
+      if (!setting.selectedLLMModel || !(await getOllamaRunning())) return;
+    } catch {
+      return;
+    }
+    const updatedWorkspace = workspaceData;
 
     const documentTitle = updatedWorkspace.document?.title || updatedWorkspace.name || '문서';
     const taskId = startTask({
@@ -218,7 +133,9 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   return (
     <div className={'relative'}>
       <div
-        className={'h-[90dvh] min-w-0 bg-white rounded-lg p-4 shadow-md my-4 flex flex-col overflow-hidden'}
+        className={
+          'h-[90dvh] min-w-0 bg-white rounded-lg p-4 shadow-md my-4 flex flex-col overflow-hidden'
+        }
       >
         <div className={'flex items-center justify-between gap-4'}>
           <div className={'w-[300px]'}>
@@ -254,7 +171,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
                 <DnEditor
                   content={draft}
                   setContent={(content) => {
-                    setSaveError(false);
+                    clearSaveError();
                     setDraft(content);
                   }}
                   setStatus={setDraftStatus}
@@ -282,7 +199,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
               <DnEditor
                 content={manuscript}
                 setContent={(content) => {
-                  setSaveError(false);
+                  clearSaveError();
                   setManuscript(content);
                 }}
                 setStatus={setManuscriptStatus}
@@ -292,7 +209,13 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
         </div>
         <div className={'flex items-center justify-end gap-2 self-end'}>
           <div className={`typo-b6-r ${saveError ? 'text-red-500' : 'text-stone-400'}`}>
-            {saveError ? '저장 실패 · 다시 시도해주세요' : saving ? '저장 중…' : dirty ? '저장 대기 중…' : '자동 저장됨'}
+            {saveError
+              ? '저장 실패 · 다시 시도해주세요'
+              : saving
+                ? '저장 중…'
+                : dirty
+                  ? '저장 대기 중…'
+                  : '자동 저장됨'}
           </div>
           {isBusy && (
             <div className={'typo-b6-r text-stone-400'}>

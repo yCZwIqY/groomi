@@ -103,10 +103,7 @@ declare global {
   type DocumentUpdatePayload = {
     name?: string;
     deletedAt?: string | null;
-    document?: Pick<
-      WorkspaceNodeDocument,
-      'title' | 'subTitle' | 'draft' | 'manuscript'
-    >;
+    document?: Pick<WorkspaceNodeDocument, 'title' | 'subTitle' | 'draft' | 'manuscript'>;
   };
 
   type GenerateCommentsPayload = {
@@ -166,12 +163,14 @@ declare global {
     capabilities: string[];
   };
 
-
   interface Window {
     electronMeta?: {
       preloadReady: boolean;
     };
     electronAPI: {
+      backupWorkspace: () => Promise<{ path: string } | null>;
+      restoreWorkspaceBackup: () => Promise<WorkspaceInfo | null>;
+      recoverDocument: (documentPath: string) => Promise<WorkspaceNode>;
       selectFolder: () => Promise<WorkspaceNode | null>;
       readFile: (filePath: string) => Promise<string>;
       readImage: (filePath: string) => Promise<string>;

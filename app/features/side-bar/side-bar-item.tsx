@@ -17,8 +17,7 @@ const SideBarItem = (fileTreeNode: Props) => {
   const isSelected = selectedWorkspaceId ? selectedWorkspaceId === id : false;
   const hasChildren = type === 'workspace' && (children?.length ?? 0) > 0;
   const hasSelectedDescendant =
-    type === 'workspace' &&
-    Boolean(children?.some((child) => child.id === selectedWorkspaceId));
+    type === 'workspace' && Boolean(children?.some((child) => child.id === selectedWorkspaceId));
 
   useEffect(() => {
     if (hasSelectedDescendant) {
@@ -29,11 +28,11 @@ const SideBarItem = (fileTreeNode: Props) => {
   return (
     <div className={'min-w-fit'}>
       <div
-        onClick={() => {
+        onClick={async () => {
           if (hasChildren) {
             setOpen((prev) => !prev);
           }
-          setSelectedWorkspace({
+          const selected = await setSelectedWorkspace({
             id,
             ...workspaceData,
             name,
@@ -41,7 +40,7 @@ const SideBarItem = (fileTreeNode: Props) => {
             type,
             children,
           });
-          navigate('manuscript');
+          if (selected) navigate('manuscript');
         }}
         className={`group flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition-all duration-300 ${isSelected ? 'border-primary-200 bg-primary-50 text-primary-700 ' : 'border-transparent text-stone-600 hover:border-stone-200 hover:bg-white/75 hover:text-stone-900'}`}
       >

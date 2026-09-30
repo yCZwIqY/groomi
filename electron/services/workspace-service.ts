@@ -8,6 +8,8 @@ import { createCommentExampleActions } from './comment/comment-example-actions.j
 import { createCommentStoreActions } from './comment/comment-store-actions.js';
 import { createStoryMemoryActions } from './story-memory/story-memory-actions.js';
 import { createCommentGenerationActions } from './comment/comment-generation-actions.js';
+import { createWorkspaceBackupActions } from './workspace-backup.js';
+import { serializeWorkspaceOperation } from './workspace-operation.js';
 
 export function createWorkspaceService(app: Pick<App, 'getPath'>) {
   const context = createWorkspaceServiceContext(app);
@@ -20,7 +22,9 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
   const commentExampleActions = createCommentExampleActions(context);
   const commentStoreActions = createCommentStoreActions(context);
 
-  return {
+  const service = {
+    ...createWorkspaceBackupActions(context),
+    recoverDocument: documentActions.recoverDocument,
     assertInsideWorkspace: context.assertInsideWorkspace,
     addRecentVisit: context.addRecentVisit,
     createDocument: documentActions.createDocument,
@@ -69,4 +73,17 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
     listGeneratedComments: commentStoreActions.listGeneratedComments,
     removeGeneratedComment: commentStoreActions.removeGeneratedComment,
   };
+  // Inference only reads snapshots and must not block writing a manuscript.
+  const concurrent = new Set(['generateStoryMemory', 'generateComments', 'toFileSystemPath']);
+  return Object.fromEntries(
+    Object.entries(service).map(([name, action]) => [
+      name,
+      concurrent.has(name)
+        ? action
+        : (...args: unknown[]) =>
+            serializeWorkspaceOperation(() =>
+              (action as (...args: unknown[]) => Promise<unknown>)(...args),
+            ),
+    ]),
+  ) as typeof service;
 }

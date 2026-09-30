@@ -13,6 +13,8 @@ const channels = {
     showInFolder: 'show-in-folder',
   },
   workspace: {
+    backup: 'workspace:backup',
+    restoreBackup: 'workspace:restore-backup',
     getWorkspaceTree: 'workspace:get-tree',
     getTrashItems: 'workspace:get-trash-items',
     treeChanged: 'workspace:tree-changed',
@@ -30,6 +32,7 @@ const channels = {
     updateWorkspaceInfo: 'workspace:update-info',
   },
   document: {
+    recoverDocument: 'document:recover',
     createDocument: 'document:create',
     getDocument: 'document:get',
     removeDocument: 'document:remove',
@@ -94,6 +97,8 @@ const fileApi = {
 };
 
 const workspaceApi = {
+  backupWorkspace: () => ipcRenderer.invoke(channels.workspace.backup),
+  restoreWorkspaceBackup: () => ipcRenderer.invoke(channels.workspace.restoreBackup),
   getWorkspaceTree: (targetPath?: string) =>
     ipcRenderer.invoke(channels.workspace.getWorkspaceTree, targetPath),
   getTrashItems: () => ipcRenderer.invoke(channels.workspace.getTrashItems),
@@ -128,6 +133,8 @@ const workspaceApi = {
 };
 
 const documentApi = {
+  recoverDocument: (documentPath: string) =>
+    ipcRenderer.invoke(channels.document.recoverDocument, documentPath),
   createDocument: (workspacePath: string, name?: string) =>
     ipcRenderer.invoke(channels.document.createDocument, workspacePath, name),
   getDocument: (documentPath: string) =>
@@ -170,8 +177,7 @@ const commentApi = {
   generateComments: (payload: GenerateCommentsPayload) =>
     ipcRenderer.invoke(channels.comment.generateComments, payload),
   listCommentExamples: () => ipcRenderer.invoke(channels.comment.listExamples),
-  removeCommentExample: (id: string) =>
-    ipcRenderer.invoke(channels.comment.removeExample, id),
+  removeCommentExample: (id: string) => ipcRenderer.invoke(channels.comment.removeExample, id),
   listGeneratedComments: (documentPath: string) =>
     ipcRenderer.invoke(channels.comment.listGenerated, documentPath),
   removeGeneratedComment: (documentPath: string, commentId: string) =>

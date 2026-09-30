@@ -1,4 +1,15 @@
 import { requireElectronApi } from './client';
+import { flushPendingDocument } from '../pending-document';
+
+export async function backupWorkspace() {
+  await flushPendingDocument();
+  return requireElectronApi().backupWorkspace();
+}
+
+export async function restoreWorkspaceBackup() {
+  await flushPendingDocument();
+  return requireElectronApi().restoreWorkspaceBackup();
+}
 
 export async function getWorkspaceTree(path?: string) {
   return requireElectronApi().getWorkspaceTree(path);
@@ -21,10 +32,12 @@ export async function initCurrentWorkspace() {
 }
 
 export async function selectWorkspacePath() {
+  await flushPendingDocument();
   return requireElectronApi().selectWorkspacePath();
 }
 
 export async function updateWorkspaceRootPath(targetPath: string) {
+  await flushPendingDocument();
   return requireElectronApi().updateWorkspaceRoot(targetPath);
 }
 
@@ -33,10 +46,12 @@ export async function createWorkspace(path: string, novelType?: NovelType) {
 }
 
 export async function removeWorkspace(path: string) {
+  await flushPendingDocument();
   return requireElectronApi().removeWorkspace(path);
 }
 
 export async function purgeWorkspace(path: string) {
+  await flushPendingDocument();
   return requireElectronApi().purgeWorkspace(path);
 }
 

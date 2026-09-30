@@ -10,6 +10,16 @@ export function now() {
   return new Date().toISOString();
 }
 
+export function nextDeletionTime(nodes: { deletedAt?: string | null }[]) {
+  // Distinguish deletion batches even within the same millisecond or after a
+  // clock change, so restoring a group cannot revive an older trash item.
+  const previous = nodes.reduce(
+    (latest, node) => Math.max(latest, node.deletedAt ? Date.parse(node.deletedAt) || 0 : 0),
+    0,
+  );
+  return new Date(Math.max(Date.now(), previous + 1)).toISOString();
+}
+
 export function normalizePath(targetPath: string) {
   return path.resolve(targetPath);
 }

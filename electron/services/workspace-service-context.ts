@@ -1,8 +1,12 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import type { App } from 'electron';
 
-import { getWorkspaceScriptDataFilePath } from '../common/paths.js';
-import { withTransaction } from '../db/connection.js';
+import {
+  getWorkspaceScriptDataFilePath,
+  getWorkspaceImagesDirectoryPath,
+} from '../common/paths.js';
+import { all, run, withTransaction } from '../db/connection.js';
 import { deleteFile, pathExists } from './file-system.js';
 import { withWorkspaceRepositories } from './workspace-repository-context.js';
 import { createWorkspaceSettings } from './workspace-settings.js';
@@ -63,6 +67,18 @@ export function createWorkspaceServiceContext(app: Pick<App, 'getPath'>) {
     }
 
     const filePath = toFileSystemPath(coverPath);
+    const workspacePath = await workspaceSettings.getCurrentWorkspacePath();
+    const relative = path.relative(getWorkspaceImagesDirectoryPath(workspacePath), filePath);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return;
+    const store = await ensureStore(workspacePath);
+    if (
+      [store.workspace, ...store.groups].some(
+        (group) =>
+          group.coverPath &&
+          normalizePath(toFileSystemPath(group.coverPath)) === normalizePath(filePath),
+      )
+    )
+      return;
     if (await pathExists(filePath)) {
       await deleteFile(filePath);
     }
@@ -70,10 +86,37 @@ export function createWorkspaceServiceContext(app: Pick<App, 'getPath'>) {
 
   async function removeDocumentContentFile(workspacePath: string, documentId: string) {
     const documentDataPath = getWorkspaceScriptDataFilePath(workspacePath, documentId);
-
-    if (await pathExists(documentDataPath)) {
-      await deleteFile(documentDataPath);
+    const files = await fs.readdir(path.dirname(documentDataPath));
+    for (const file of files) {
+      if (file === `${documentId}.json` || file.startsWith(`${documentId}.json.`)) {
+        await fs.rm(path.join(path.dirname(documentDataPath), file), { force: true });
+      }
     }
+  }
+
+  async function cleanupDeletedDocumentFiles(workspacePath: string) {
+    await withWorkspaceRepositories(workspacePath, async ({ db }) => {
+      const pending = await all<{ documentId: string }>(
+        db,
+        'SELECT documentId FROM pending_document_deletions WHERE documentId NOT IN (SELECT id FROM workspace_nodes)',
+      );
+      for (const item of pending) {
+        try {
+          await removeDocumentContentFile(workspacePath, item.documentId);
+          await run(db, 'DELETE FROM pending_document_deletions WHERE documentId = ?', [
+            item.documentId,
+          ]);
+          await run(db, 'DELETE FROM document_file_commits WHERE documentId = ?', [
+            item.documentId,
+          ]);
+        } catch (error) {
+          throw new Error(
+            '항목은 삭제했지만 원고 파일을 정리하지 못했습니다. 파일을 사용하는 프로그램을 닫고 그루미를 다시 실행하면 재시도합니다.',
+            { cause: error },
+          );
+        }
+      }
+    });
   }
 
   return {
@@ -84,7 +127,12 @@ export function createWorkspaceServiceContext(app: Pick<App, 'getPath'>) {
     getStoreNodeByPath,
     getUpdatedNodeById,
     getWorkspaceInfo: workspaceSettings.getWorkspaceInfo,
-    initCurrentWorkspace: workspaceSettings.initCurrentWorkspace,
+    async initCurrentWorkspace() {
+      const result = await workspaceSettings.initCurrentWorkspace();
+      await cleanupDeletedDocumentFiles(result.path).catch(console.error);
+      return result;
+    },
+    cleanupDeletedDocumentFiles,
     removeCoverImage,
     removeDocumentContentFile,
     resetWorkspacePath: workspaceSettings.resetWorkspacePath,

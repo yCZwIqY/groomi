@@ -1,3 +1,4 @@
+import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import ollama from 'ollama';
 
 import { ensureStore, readDocumentContent, writeDocumentContent } from '../workspace/store.js';
@@ -40,55 +41,66 @@ export function getNovelType(store: WorkspaceStore, parentId: string | null): No
 }
 
 function buildChapterText(content: StoredDocumentContent, fallbackTitle: string) {
-  return [content.title ?? fallbackTitle, content.subTitle, content.draft?.content, content.manuscript?.content]
+  return [
+    content.title ?? fallbackTitle,
+    content.subTitle,
+    content.draft?.content,
+    content.manuscript?.content,
+  ]
     .filter(Boolean)
     .join('\n\n');
 }
 
 export function createStoryMemoryActions(context: WorkspaceServiceContext) {
   async function generateStoryMemory(documentPath: string): Promise<StoryMemoryDraft> {
-    const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
+    const { model, standalone, systemPrompt, userPrompt } = await serializeWorkspaceOperation(
+      async () => {
+        const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
-    if (!node || node.type !== 'document') {
-      throw new Error('회차 정보를 생성할 문서를 찾을 수 없습니다.');
-    }
+        if (!node || node.type !== 'document') {
+          throw new Error('회차 정보를 생성할 문서를 찾을 수 없습니다.');
+        }
 
-    const setting = await context.withWorkspaceRepositories(
-      workspacePath,
-      async ({ settingInfo }) => settingInfo.findSettingInfo(),
+        const setting = await context.withWorkspaceRepositories(
+          workspacePath,
+          async ({ settingInfo }) => settingInfo.findSettingInfo(),
+        );
+
+        if (!setting.selectedLLMModel) {
+          throw new Error('LLM 모델이 선택되지 않았습니다.');
+        }
+
+        const novelType = getNovelType(store, node.parentId ?? null);
+        const standalone = novelType === 'short';
+
+        const currentContent = await readDocumentContent(workspacePath, node.id);
+        const currentText = buildChapterText(currentContent, node.name);
+
+        let previousMemory: StoryMemory | null = null;
+
+        if (!standalone) {
+          const chapters = sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
+          const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
+          const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
+
+          previousMemory = previousChapter
+            ? ((await readDocumentContent(workspacePath, previousChapter.id)).storyMemory ?? null)
+            : null;
+        }
+
+        const { systemPrompt, userPrompt } = buildStoryMemoryPrompt({
+          chapterTitle: currentContent.title ?? node.name,
+          currentText,
+          previousMemory,
+          standalone,
+        });
+
+        return { model: setting.selectedLLMModel, standalone, systemPrompt, userPrompt };
+      },
     );
 
-    if (!setting.selectedLLMModel) {
-      throw new Error('LLM 모델이 선택되지 않았습니다.');
-    }
-
-    const novelType = getNovelType(store, node.parentId ?? null);
-    const standalone = novelType === 'short';
-
-    const currentContent = await readDocumentContent(workspacePath, node.id);
-    const currentText = buildChapterText(currentContent, node.name);
-
-    let previousMemory: StoryMemory | null = null;
-
-    if (!standalone) {
-      const chapters = sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
-      const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
-      const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-
-      previousMemory = previousChapter
-        ? ((await readDocumentContent(workspacePath, previousChapter.id)).storyMemory ?? null)
-        : null;
-    }
-
-    const { systemPrompt, userPrompt } = buildStoryMemoryPrompt({
-      chapterTitle: currentContent.title ?? node.name,
-      currentText,
-      previousMemory,
-      standalone,
-    });
-
     const response = await ollama.chat({
-      model: setting.selectedLLMModel,
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -195,9 +207,7 @@ function buildStoryMemoryPrompt({
         .join('\n')
     : '없음';
   const previousPlotHooks = previousMemory?.plotHooks?.length
-    ? previousMemory.plotHooks
-        .map((hook) => `- (${hook.plantedAt}) ${hook.description}`)
-        .join('\n')
+    ? previousMemory.plotHooks.map((hook) => `- (${hook.plantedAt}) ${hook.description}`).join('\n')
     : '없음';
 
   const systemPrompt = standalone

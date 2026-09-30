@@ -1,6 +1,12 @@
 import path from 'node:path';
+import { createDocumentInfoRepository } from '../repositories/document-info-repository.js';
+import { createWorkspaceNodeRepository } from '../repositories/workspace-node-repository.js';
+import {
+  restorePreviousDocumentContent,
+  updateDocumentContentWithMetadata,
+} from './workspace/script-files.js';
 
-import { withTransaction } from '../db/connection.js';
+import { run, withTransaction } from '../db/connection.js';
 import {
   buildStoredDocumentMeta,
   ensureStore,
@@ -13,6 +19,7 @@ import {
   collectGroupAncestorIds,
   normalizePath,
   now,
+  nextDeletionTime,
   sanitizeNodeName,
 } from './workspace/shared.js';
 import type { WorkspaceServiceContext } from './workspace-service-context.js';
@@ -69,16 +76,19 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
         updatedAt: now(),
       },
     });
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, documentInfo, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.insertNode(
-          store,
-          document,
-          path.join(normalizedParentPath, `${documentName}.json`),
-        );
-        await documentInfo.insertDocumentInfo(document);
-      });
-    });
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, documentInfo, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await workspaceNodes.insertNode(
+            store,
+            document,
+            path.join(normalizedParentPath, `${documentName}.json`),
+          );
+          await documentInfo.insertDocumentInfo(document);
+        });
+      },
+    );
 
     return buildDocumentNode(
       document,
@@ -120,19 +130,22 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
 
   async function removeDocument(documentPath: string) {
     const workspacePath = await context.getCurrentWorkspacePath();
-    const { node } = await context.getStoreNodeByPath(documentPath);
+    const { store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
       throw new Error('삭제할 문서를 찾을 수 없습니다.');
     }
 
-    const deletedAt = now();
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, recentVisits, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.markNodesDeleted([node.id], deletedAt, deletedAt);
-        await recentVisits.deleteRecentVisitsByIds([node.id]);
-      });
-    });
+    const deletedAt = nextDeletionTime([...store.groups, ...store.documents]);
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, recentVisits, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await workspaceNodes.markNodesDeleted([node.id], deletedAt, deletedAt);
+          await recentVisits.deleteRecentVisitsByIds([node.id]);
+        });
+      },
+    );
 
     return {
       removed: true,
@@ -147,15 +160,24 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     if (!node || node.type !== 'document') {
       throw new Error('영구 삭제할 문서를 찾을 수 없습니다.');
     }
+    if (!node.deletedAt) throw new Error('휴지통에 있는 문서만 영구 삭제할 수 있습니다.');
 
-    await context.removeDocumentContentFile(workspacePath, node.id);
-
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, recentVisits, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await recentVisits.deleteRecentVisitsByIds([node.id]);
-        await workspaceNodes.deleteNodesByIds([node.id]);
-      });
-    });
+    await context.withWorkspaceRepositories(
+      workspacePath,
+      async ({ db, recentVisits, workspaceNodes }) => {
+        await withTransaction(db, async () => {
+          await recentVisits.deleteRecentVisitsByIds([node.id]);
+          await workspaceNodes.deleteNodesByIds([node.id]);
+          await run(
+            db,
+            'INSERT OR IGNORE INTO pending_document_deletions (documentId) VALUES (?)',
+            [node.id],
+          );
+        });
+      },
+    );
+    // Failed DB deletion must leave the original recoverable file untouched.
+    await context.cleanupDeletedDocumentFiles(workspacePath);
 
     return {
       removed: true,
@@ -176,7 +198,11 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const restoredAt = now();
 
     await context.withWorkspaceRepositories(workspacePath, async ({ workspaceNodes }) => {
-      await workspaceNodes.markNodesDeleted([node.id, ...restoredAncestorGroupIds], null, restoredAt);
+      await workspaceNodes.markNodesDeleted(
+        [node.id, ...restoredAncestorGroupIds],
+        null,
+        restoredAt,
+      );
     });
 
     return {
@@ -203,7 +229,9 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
       manuscript: documentData.manuscript ?? currentContent.manuscript,
     };
 
-    const currentDocument = store.documents.find((document: WorkspaceStoreDocument) => document.id === node.id);
+    const currentDocument = store.documents.find(
+      (document: WorkspaceStoreDocument) => document.id === node.id,
+    );
     if (!currentDocument) {
       throw new Error('수정할 문서 메타데이터를 찾을 수 없습니다.');
     }
@@ -219,20 +247,19 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
       nextContent,
     );
 
-    await context.withWorkspaceRepositories(workspacePath, async ({ db, documentInfo, workspaceNodes }) => {
-      await withTransaction(db, async () => {
-        await workspaceNodes.updateNodeDetails(node.id, {
-          name: nextDocument.name,
-          path: path.join(node.parentPath, `${nextDocument.name}.json`),
-          updatedAt,
-        });
-        if ('deletedAt' in data) {
-          await workspaceNodes.markNodesDeleted([node.id], nextDocument.deletedAt, updatedAt);
-        }
-        await documentInfo.updateDocumentInfo(nextDocument);
+    await updateDocumentContentWithMetadata(workspacePath, node.id, nextContent, async (db) => {
+      const documentInfo = createDocumentInfoRepository(db);
+      const workspaceNodes = createWorkspaceNodeRepository(db);
+      await workspaceNodes.updateNodeDetails(node.id, {
+        name: nextDocument.name,
+        path: path.join(node.parentPath, `${nextDocument.name}.json`),
+        updatedAt,
       });
+      if ('deletedAt' in data) {
+        await workspaceNodes.markNodesDeleted([node.id], nextDocument.deletedAt, updatedAt);
+      }
+      await documentInfo.updateDocumentInfo(nextDocument);
     });
-    await writeDocumentContent(workspacePath, node.id, nextContent);
 
     const nextStore = await ensureStore(workspacePath);
     const updatedNode = context.getUpdatedNodeById(workspacePath, nextStore, node.id);
@@ -240,6 +267,12 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
   }
 
   return {
+    async recoverDocument(documentPath: string) {
+      const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
+      if (!node || node.type !== 'document') throw new Error('복구할 문서를 찾을 수 없습니다.');
+      await restorePreviousDocumentContent(workspacePath, node.id);
+      return getDocument(documentPath);
+    },
     createDocument,
     getDocument,
     purgeDocument,
@@ -248,4 +281,3 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     updateDocument,
   };
 }
-

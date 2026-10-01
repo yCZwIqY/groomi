@@ -1,1 +1,1 @@
-export * from './document-content'
+export * from './document-content';

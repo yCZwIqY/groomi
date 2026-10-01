@@ -1,1 +1,1 @@
-export * from './generate-comment'
+export * from './generate-comment';

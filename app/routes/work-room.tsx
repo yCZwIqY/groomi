@@ -165,11 +165,11 @@ const Workroom = () => {
       </div>
 
       <section className='grid grid-cols-2 gap-3 lg:max-w-xl'>
-        <div className='rounded-lg bg-white px-4 py-3 shadow-md'>
+        <div className='ui-card px-4 py-3'>
           <div className='text-xs text-neutral-400'>워크스페이스</div>
           <div className='mt-1 text-xl font-bold text-neutral-700'>{workspaceCount}</div>
         </div>
-        <div className='rounded-lg bg-white px-4 py-3 shadow-md'>
+        <div className='ui-card px-4 py-3'>
           <div className='text-xs text-neutral-400'>작성 중인 문서</div>
           <div className='mt-1 text-xl font-bold text-neutral-700'>{documentCount}</div>
         </div>
@@ -211,7 +211,7 @@ function HomeSection({
   onClick: (item: WorkspaceNode) => void;
 }) {
   return (
-    <section className='w-full rounded-lg bg-white shadow-md'>
+    <section className='ui-card w-full'>
       <div className='border-b border-neutral-200 px-4 py-3'>
         <h2 className='text-sm font-bold text-neutral-600'>{title}</h2>
         <p className='mt-1 text-xs text-neutral-400'>{description}</p>

@@ -37,7 +37,9 @@ const DnEditor = ({ content, setContent, setStatus, editable = true }: Props) =>
   });
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    // Editing-mode synchronization must not emit an update with the editor's
+    // initial empty content before the saved manuscript has been hydrated.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   useEffect(() => {

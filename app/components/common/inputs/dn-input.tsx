@@ -11,25 +11,26 @@ interface Props extends Omit<TextInputProps, 'size'> {
 
 const styles = tv({
   base: [
-    'outline-2 outline-transparent outline-offset-1 transition-all px-2 py-1',
+    'outline-2 outline-transparent outline-offset-1 transition-colors px-3 py-2',
     '[&_input]:outline-none [&_input]:w-full [&_input]:h-full',
   ],
   variants: {
     variant: {
-      outlined: 'bg-none border border-gray-500 text-gray-900 focus-within:outline-primary-500',
+      outlined:
+        'bg-white border border-stone-200 text-stone-800 focus-within:border-primary-500 focus-within:outline-primary-100',
       underlined:
-        'bg-none border-b border-gray-800 text-gray-900 rounded-none! outline-0 focus-within:border-primary-500 ',
+        'bg-none border-b border-stone-200 text-stone-800 rounded-none! outline-0 focus-within:border-primary-500 ',
       text: 'bg-none focus-within:outline-primary-500',
     },
     size: {
-      s: 'min-w-4 h-8 typo-b6-b',
-      m: 'min-w-6 h-11 typo-b3-b',
-      l: 'min-w-8 h-13 typo-b2-b',
+      s: 'min-w-4 h-8 text-xs',
+      m: 'min-w-6 h-9 text-sm',
+      l: 'min-w-8 h-11 text-sm',
     },
     rounded: {
       s: 'rounded-sm',
-      m: 'rounded-md',
-      l: 'rounded-l',
+      m: 'rounded-lg',
+      l: 'rounded-xl',
     },
     fontWeight: {
       light: 'font-light!',

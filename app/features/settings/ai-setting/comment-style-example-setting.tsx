@@ -1,31 +1,43 @@
+import { uiFieldClass } from '~/components/common/ui-styles';
 import { useEffect, useState } from 'react';
 
-import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
 import DnButton from '~/components/common/buttons/dn-button';
 import {
   addCommentExample,
   listCommentExamples,
   removeCommentExample,
 } from '~/lib/electron/comment-api';
-import { DnSelect } from '~/components/common/selector';
+import { DnChipGroup } from '~/components/common/chip-group';
+import {
+  READING_EXPERIENCE_OPTIONS,
+  READING_EXPERIENCE_LEVELS,
+  INTEREST_OPTIONS,
+  REACTION_OPTIONS,
+} from '~/lib/comment-persona-options';
+import { showToast } from '~/lib/toast-manager';
+import SettingsSection from '~/components/common/settings-section';
+import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
+import CommentStyleExampleItem from './comment-style-example-item';
 
-const EXPERTISE_LABEL: Record<number, string> = {
-  0: '입문 독자',
-  20: '가볍게 즐기는 독자',
-  40: '자주 읽는 독자',
-  60: '꼼꼼히 읽는 독자',
-  80: '창작 경험 보유',
-  100: '편집자/비평가',
-};
-
-const TONES = ['몰입', '의문', '추측', '아쉬움', '기대', '캐릭터 반응', '분석', '지적'];
-
-const AGE_GROUPS = [10, 20, 30, 40, 50, 60, 70, 80];
-const EXPERTISE_LEVELS = [0, 20, 40, 60, 80, 100];
+const AGE_OPTIONS = [
+  { label: '미지정', value: '' },
+  ...[10, 20, 30, 40, 50, 60, 70, 80].map((age) => ({ label: age + '대', value: String(age) })),
+];
+const EXPERIENCE_OPTIONS = [
+  { label: '미지정', value: '' },
+  ...READING_EXPERIENCE_OPTIONS.map((option) => ({
+    label: option.label,
+    value: String(READING_EXPERIENCE_LEVELS[option.value]),
+  })),
+];
+const INTEREST_CHIPS = [{ label: '미지정', value: '' }, ...INTEREST_OPTIONS];
+const REACTION_CHIPS = [{ label: '미지정', value: '' }, ...REACTION_OPTIONS];
 
 const CommentStyleExampleSetting = () => {
   const [commentExamples, setCommentExamples] = useState<CommentExample[]>([]);
   const [commentExampleContent, setCommentExampleContent] = useState('');
+  const [commentExampleInterest, setCommentExampleInterest] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [commentExampleTone, setCommentExampleTone] = useState('');
   const [commentExampleAgeGroup, setCommentExampleAgeGroup] = useState('');
   const [commentExampleExpertise, setCommentExampleExpertise] = useState('');
@@ -33,18 +45,19 @@ const CommentStyleExampleSetting = () => {
   const [removingExampleId, setRemovingExampleId] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadCommentExamples();
+    void loadCommentExamples().catch(() => setLoadError('댓글 스타일 예시를 불러오지 못했습니다.'));
   }, []);
 
   const loadCommentExamples = async () => {
     const examples = await listCommentExamples();
     setCommentExamples(examples);
+    setLoadError('');
   };
 
   const handleAddCommentExample = async () => {
     const content = commentExampleContent.trim();
 
-    if (!content) {
+    if (isSavingCommentExample || !content) {
       return;
     }
 
@@ -54,11 +67,15 @@ const CommentStyleExampleSetting = () => {
       await addCommentExample({
         content,
         tone: commentExampleTone || null,
+        interest: commentExampleInterest || null,
         ageGroup: commentExampleAgeGroup ? Number(commentExampleAgeGroup) : null,
         expertiseLevel: commentExampleExpertise ? Number(commentExampleExpertise) : null,
       });
       setCommentExampleContent('');
       await loadCommentExamples();
+      showToast('댓글 스타일 예시를 저장했습니다.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '예시 저장에 실패했습니다.', 'danger');
     } finally {
       setIsSavingCommentExample(false);
     }
@@ -70,182 +87,124 @@ const CommentStyleExampleSetting = () => {
     try {
       await removeCommentExample(id);
       await loadCommentExamples();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '예시 삭제에 실패했습니다.', 'danger');
     } finally {
       setRemovingExampleId(null);
     }
   };
 
   return (
-    <section className={'w-full rounded-lg bg-white shadow-md'}>
-      <div
-        className={'flex items-start justify-between gap-4 border-b border-neutral-200 px-4 py-3'}
-      >
-        <div>
-          <div className={'text-sm font-bold text-neutral-600'}>댓글 스타일 예시</div>
-          <p className={'mt-1 text-xs text-neutral-400'}>
-            실제 독자 댓글을 저장하면 댓글 생성 시 문체 예시로 참고합니다.
-          </p>
+    <SettingsSection
+      collapsible
+      title={'댓글 스타일 예시'}
+      description={
+        '독서 경험·관심사·반응 성향에 맞는 댓글 문체를 참고합니다. 예시 하나당 각 조건을 하나 선택하거나 미지정으로 남겨주세요.'
+      }
+      count={commentExamples.length}
+    >
+      <div className={'flex flex-col gap-5'}>
+        <div className={'flex flex-col gap-5 rounded-xl border border-stone-200 bg-white p-4'}>
+          <label className={'flex flex-col gap-2'}>
+            <span className={'text-sm font-medium text-stone-700'}>댓글 내용</span>
+            <textarea
+              className={`min-h-24 w-full resize-y ${uiFieldClass}`}
+              onChange={(event) => setCommentExampleContent(event.target.value)}
+              placeholder={'예: 얘는 화난 와중에도 동생부터 챙기네 ㅠㅠ'}
+              value={commentExampleContent}
+              disabled={isSavingCommentExample}
+            />
+          </label>
+          <fieldset disabled={isSavingCommentExample}>
+            <legend className={'mb-2 text-sm font-semibold text-stone-900'}>독서 경험</legend>
+            <DnChipGroup
+              className={'flex! flex-wrap'}
+              options={EXPERIENCE_OPTIONS}
+              value={commentExampleExpertise}
+              onChange={setCommentExampleExpertise}
+              disabled={isSavingCommentExample}
+            />
+          </fieldset>
+          <fieldset disabled={isSavingCommentExample}>
+            <legend className={'mb-2 text-sm font-semibold text-stone-900'}>관심사</legend>
+            <DnChipGroup
+              className={'flex! flex-wrap'}
+              options={INTEREST_CHIPS}
+              value={commentExampleInterest}
+              onChange={setCommentExampleInterest}
+              disabled={isSavingCommentExample}
+            />
+          </fieldset>
+          <fieldset disabled={isSavingCommentExample}>
+            <legend className={'mb-2 text-sm font-semibold text-stone-900'}>반응 성향</legend>
+            <DnChipGroup
+              className={'flex! flex-wrap'}
+              options={REACTION_CHIPS}
+              value={commentExampleTone}
+              onChange={setCommentExampleTone}
+              disabled={isSavingCommentExample}
+            />
+          </fieldset>
+          <details className={'rounded-lg bg-stone-50 p-3'}>
+            <summary className={'cursor-pointer text-sm font-medium text-stone-600'}>
+              보조 설정 · 연령대
+            </summary>
+            <div className={'pt-3'}>
+              <DnChipGroup
+                className={'flex! flex-wrap'}
+                options={AGE_OPTIONS}
+                value={commentExampleAgeGroup}
+                onChange={setCommentExampleAgeGroup}
+                disabled={isSavingCommentExample}
+              />
+            </div>
+          </details>
+          <div className={'flex justify-end'}>
+            <DnButton
+              loading={isSavingCommentExample}
+              disabled={!commentExampleContent.trim() || isSavingCommentExample}
+              onClick={() => void handleAddCommentExample()}
+              variant={'outlined'}
+            >
+              예시 저장
+            </DnButton>
+          </div>
         </div>
-        <div className={'text-xs text-neutral-400'}>{commentExamples.length}개</div>
-      </div>
-
-      <div className={'grid gap-2 px-4 py-4'}>
-        <textarea
-          className={
-            'min-h-20 w-full resize-y rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-neutral-400'
-          }
-          onChange={(event) => setCommentExampleContent(event.target.value)}
-          placeholder='예: 아 여기서 끊는 건 진짜 너무하네'
-          value={commentExampleContent}
-        />
-        <div className={'grid grid-cols-3 gap-2'}>
-          <DnSelect
-            placeholder={'독자 나이대 선택'}
-            onChange={(value) => setCommentExampleAgeGroup(value.toString())}
-            value={commentExampleAgeGroup}
-            options={Object.entries(AGE_GROUPS).map(([key, value]) => ({
-              value: key,
-              label: `${value} 대`,
-            }))}
-          />
-          <DnSelect
-            placeholder={'독자 전문성 선택'}
-            onChange={(value) => setCommentExampleExpertise(value.toString())}
-            value={commentExampleExpertise}
-            options={Object.entries(EXPERTISE_LABEL).map(([key, value]) => ({
-              value: key,
-              label: value,
-            }))}
-          />
-          <DnSelect
-            placeholder={'톤 선택'}
-            onChange={(value) => setCommentExampleTone(value.toString())}
-            value={commentExampleTone}
-            options={TONES.map((it) => ({
-              label: it,
-              value: it,
-            }))}
-          />
-        </div>
-        <div className={'flex justify-end'}>
-          <DnButton
-            loading={isSavingCommentExample}
-            onClick={handleAddCommentExample}
-            variant='outlined'
+        {loadError && (
+          <div
+            role={'alert'}
+            className={'flex items-center justify-between gap-3 text-sm text-red-600'}
           >
-            예시 저장
-          </DnButton>
+            {loadError}
+            <DnButton
+              size={'s'}
+              variant={'outlined'}
+              onClick={() =>
+                void loadCommentExamples().catch(() =>
+                  setLoadError('댓글 스타일 예시를 불러오지 못했습니다.'),
+                )
+              }
+            >
+              다시 확인
+            </DnButton>
+          </div>
+        )}
+        <div className={'flex max-h-[640px] flex-col gap-3 overflow-y-auto pr-1'}>
+          {!loadError && commentExamples.length === 0 && (
+            <StoryMemoryState>저장된 댓글 스타일 예시가 없습니다.</StoryMemoryState>
+          )}
+          {commentExamples.map((example) => (
+            <CommentStyleExampleItem
+              key={example.id}
+              example={example}
+              removing={removingExampleId === example.id}
+              onRemove={() => void handleRemoveCommentExample(example.id)}
+            />
+          ))}
         </div>
       </div>
-
-      <div className={'overflow-x-auto p-3'}>
-        <table className={'w-full min-w-[760px]'}>
-          <colgroup>
-            <col className={'w-[52px]'} />
-            <col className={'w-[44%]'} />
-            <col className={'w-[10%]'} />
-            <col className={'w-[14%]'} />
-            <col className={'w-[10%]'} />
-            <col className={'w-[52px]'} />
-          </colgroup>
-          <thead className={'border-b border-neutral-200'}>
-            <tr className={'h-12 text-sm'}>
-              <th>No.</th>
-              <th>댓글 예시</th>
-              <th>나이대</th>
-              <th>전문성</th>
-              <th>톤</th>
-              <th>관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {commentExamples.length === 0 && (
-              <tr>
-                <td
-                  className={'p-4 text-center text-sm text-neutral-500'}
-                  colSpan={6}
-                >
-                  저장된 댓글 스타일 예시가 없습니다.
-                </td>
-              </tr>
-            )}
-            {commentExamples.map((example, index) => (
-              <tr
-                className={'border-b border-neutral-100 hover:bg-primary-100/10'}
-                key={example.id}
-              >
-                <td className={'p-2 text-center font-bold text-neutral-500'}>
-                  {(index + 1).toLocaleString()}
-                </td>
-                <td className={'px-2 py-4 text-sm text-neutral-700'}>
-                  <div className={'line-clamp-3 whitespace-pre-line break-words'}>
-                    {example.content}
-                  </div>
-                </td>
-                <td className={'text-center text-sm text-neutral-500'}>
-                  {example.ageGroup ? `${example.ageGroup}대` : '전체'}
-                </td>
-                <td className={'text-center text-sm text-neutral-500'}>
-                  {formatExpertise(example.expertiseLevel)}
-                </td>
-                <td className={'text-center text-sm text-neutral-500'}>{example.tone ?? '-'}</td>
-                <td>
-                  <div className={'flex justify-center'}>
-                    <ConfirmModalWrapper
-                      confirmLabel={'삭제'}
-                      confirmVariant={'red'}
-                      description={
-                        <div className={'py-10 text-center'}>
-                          <span className={'font-bold text-primary-500'}>댓글 스타일 예시</span>
-                          를
-                          <br />
-                          삭제하시겠습니까?
-                        </div>
-                      }
-                      onConfirm={() => void handleRemoveCommentExample(example.id)}
-                    >
-                      <button
-                        className={
-                          'text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-neutral-300'
-                        }
-                        disabled={removingExampleId === example.id}
-                        type='button'
-                      >
-                        삭제
-                      </button>
-                    </ConfirmModalWrapper>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </SettingsSection>
   );
 };
-
-function formatExpertise(expertiseLevel: number | null) {
-  if (expertiseLevel === null) {
-    return '전체';
-  }
-
-  return EXPERTISE_LABEL[expertiseLevel] ?? `전문성 ${expertiseLevel}`;
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '-';
-  }
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
 
 export default CommentStyleExampleSetting;

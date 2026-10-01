@@ -1,1 +1,1 @@
-export * from './trash-node'
+export * from './trash-node';

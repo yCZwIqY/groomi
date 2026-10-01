@@ -1,4 +1,4 @@
-export const WORKSPACE_SCHEMA_VERSION = 2;
+export const WORKSPACE_SCHEMA_VERSION = 3;
 
 export const WORKSPACE_SCHEMA_STATEMENTS = [
   'PRAGMA foreign_keys = ON',
@@ -60,6 +60,7 @@ export const WORKSPACE_SCHEMA_STATEMENTS = [
       id TEXT PRIMARY KEY,
       content TEXT NOT NULL,
       tone TEXT,
+      interest TEXT,
       ageGroup INTEGER,
       gender TEXT CHECK (gender IS NULL OR gender IN ('male', 'female')),
       expertiseLevel INTEGER,

@@ -10,19 +10,17 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const styles = tv({
-  base: 'flex items-center justify-center rounded-2xl transition-all',
+  base: 'flex items-center justify-center rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-primary-500 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40',
   variants: {
     variant: {
       default:
-        'border border-stone-200 bg-white/85 text-stone-600 shadow-[0_10px_30px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-primary-200 hover:text-primary-600',
-      dark:
-        'bg-stone-900 text-white shadow-sm hover:-translate-y-0.5 hover:bg-primary-600',
-      ghost:
-        'text-stone-400 hover:bg-stone-200 hover:text-stone-700 active:bg-stone-300',
+        'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:border-primary-200 hover:text-primary-600',
+      dark: 'bg-stone-900 text-white  hover:bg-primary-600',
+      ghost: 'text-stone-400 hover:bg-stone-200 hover:text-stone-700 active:bg-stone-300',
     },
     size: {
       s: 'h-8 w-8',
-      m: 'h-10 w-10',
+      m: 'h-9 w-9',
       l: 'h-11 w-11',
     },
   },

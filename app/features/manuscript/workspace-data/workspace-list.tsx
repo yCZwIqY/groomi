@@ -26,8 +26,10 @@ const WorkspaceList = ({ tree }: Props) => {
   };
 
   return (
-    <section className='w-[100%] bg-white shadow-md rounded-lg cursor-default'>
-      <table className={'w-full max-h-[320px] overflow-y-auto'}>
+    <section
+      className={'max-h-[420px] w-full overflow-auto rounded-xl border border-stone-200 bg-white'}
+    >
+      <table className={'w-full min-w-[760px]'}>
         <colgroup>
           <col className={'w-[52px]'} />
           <col className={'w-[30%]'} />
@@ -37,8 +39,8 @@ const WorkspaceList = ({ tree }: Props) => {
           <col className={'w-[10%]'} />
           <col className={'w-[52px]'} />
         </colgroup>
-        <thead className={'border-b border-neutral-200'}>
-          <tr className={'h-12  text-sm'}>
+        <thead className={'sticky top-0 z-10 border-b border-stone-200 bg-stone-100'}>
+          <tr className={'h-11 text-xs font-medium text-stone-600'}>
             <th>No.</th>
             <th>제목</th>
             <th>경로</th>
@@ -55,7 +57,7 @@ const WorkspaceList = ({ tree }: Props) => {
               <tr>
                 <td
                   colSpan={7}
-                  className={'p-4 text-sm text-neutral-500 text-center'}
+                  className={'px-4 py-8 text-center text-sm text-stone-500'}
                 >
                   하위 항목이 존재하지 않습니다.
                 </td>
@@ -64,15 +66,16 @@ const WorkspaceList = ({ tree }: Props) => {
           {tree.map((item, index) => (
             <tr
               key={item.id ?? item.path}
-              className={'border-b border-neutral-100 hover:bg-primary-100/10'}
+              className={'border-b border-stone-100 last:border-b-0 hover:bg-primary-50/50'}
             >
-              <td className={'text-center p-2 font-bold text-neutral-500'}>
+              <td className={'p-2 text-center text-xs text-stone-500'}>
                 {(index + 1).toLocaleString()}{' '}
               </td>
               <td>
-                <div
+                <button
+                  type={'button'}
                   className={
-                    'w-full px-2 py-4 cursor-pointer hover:underline flex gap-2 items-center text-lg'
+                    'flex w-full items-center gap-2 px-2 py-4 text-left text-sm font-medium text-stone-800 hover:text-primary-600 focus-visible:outline-primary-500'
                   }
                   onClick={() => setSelectedWorkspace(item)}
                 >
@@ -82,9 +85,16 @@ const WorkspaceList = ({ tree }: Props) => {
                     <AiOutlineFolder color={'var(--color-primary-500)'} />
                   )}
                   {item.name.split('.')[0]}
-                </div>
+                </button>
               </td>
-              <td className={'text-sm text-neutral-500'}>{item.path.split('.')[0]}</td>
+              <td className={'max-w-48 px-2 text-xs text-stone-500'}>
+                <span
+                  className={'block truncate'}
+                  title={item.path.split('.')[0]}
+                >
+                  {item.path.split('.')[0]}
+                </span>
+              </td>
               <td className={'text-center text-sm'}>
                 {item.type === 'document' ? item.document?.draftLength?.toLocaleString() : '-'}
               </td>
@@ -120,7 +130,9 @@ const WorkspaceList = ({ tree }: Props) => {
                   >
                     <button
                       type={'button'}
-                      className={'text-xs text-red-600 hover:underline'}
+                      className={
+                        'rounded-lg px-2 py-1.5 text-xs text-stone-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-primary-500'
+                      }
                     >
                       삭제
                     </button>

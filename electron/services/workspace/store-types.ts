@@ -25,6 +25,7 @@ export type StoryMemoryCharacter = {
 export type StoryMemoryPlotHook = {
   description: string;
   plantedAt: string;
+  status?: 'unresolved' | 'resolved';
 };
 
 export type StoryMemory = {

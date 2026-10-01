@@ -1,27 +1,19 @@
-import DnSlider from '~/components/common/slider/dn-slider';
+import DnMultiChipGroup from '~/components/common/chip-group/dn-multi-chip-group';
+import {
+  READING_EXPERIENCE_OPTIONS,
+  READING_EXPERIENCE_LEVELS,
+  INTEREST_OPTIONS,
+  REACTION_OPTIONS,
+} from '~/lib/comment-persona-options';
 import { useEffect, useState } from 'react';
 import { DnRangeSlider } from '~/components/common/slider';
 import { DnChipGroup } from '~/components/common/chip-group';
 import DnButton from '~/components/common/buttons/dn-button';
-import { RxDoubleArrowDown } from 'react-icons/rx';
 import { generateComments } from '~/lib/electron/comment-api';
 import { getOllamaRunning } from '~/lib/ollama-api';
 import { showToast } from '~/lib/toast-manager';
-import { useBackgroundTasks, useIsDocumentBusy } from '~/stores/use-background-tasks';
-
-const EXPERTISE_LABEL: Record<number, string> = {
-  0: '입문 독자',
-  20: '가볍게 즐기는 독자',
-  40: '자주 읽는 독자',
-  60: '꼼꼼히 읽는 독자',
-  80: '창작 경험 보유',
-  100: '편집자/비평가',
-};
-
-const EXPERTISE_STEPS = Object.entries(EXPERTISE_LABEL).map(([value, label]) => ({
-  value: Number(value),
-  label,
-}));
+import { useBackgroundTasks } from '~/stores/use-background-tasks';
+import LoadingOverlay from '~/components/common/loading-overlay';
 
 const AGE_STEPS = Array.from({ length: 8 }, (_, index) => (index + 1) * 10);
 const COMMENT_COUNT_OPTIONS = [
@@ -40,17 +32,26 @@ interface Props {
 const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) => {
   const [startAge, setStartAge] = useState<number>(10);
   const [endAge, setEndAge] = useState<number>(20);
-  const [expertise, setExpertise] = useState<number>(0);
+  const [readingExperiences, setReadingExperiences] = useState(
+    READING_EXPERIENCE_OPTIONS.map((option) => option.value),
+  );
+  const [interests, setInterests] = useState(INTEREST_OPTIONS.map((option) => option.value));
+  const [reactions, setReactions] = useState(REACTION_OPTIONS.map((option) => option.value));
   const [count, setCount] = useState(10);
 
   const [loading, setLoading] = useState(false);
   const [checkingOllama, setCheckingOllama] = useState(true);
   const [ollamaRunning, setOllamaRunning] = useState(false);
 
-  const [open, setOpen] = useState<boolean>(false);
   const startTask = useBackgroundTasks((state) => state.startTask);
   const finishTask = useBackgroundTasks((state) => state.finishTask);
-  const isBusy = useIsDocumentBusy(documentPath);
+  const runningTask = useBackgroundTasks((state) =>
+    state.tasks.find((task) => task.documentPath === documentPath && task.status === 'running'),
+  );
+  const isBusy = Boolean(runningTask);
+  const overlayVisible = loading || isBusy;
+  const overlayLabel =
+    runningTask?.type === 'story-memory' ? '회차 정보 생성 중…' : '댓글 생성 중…';
   const disabled = checkingOllama || !ollamaRunning || loading || isBusy;
 
   const checkOllama = async () => {
@@ -70,6 +71,7 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
   }, []);
 
   const handleGenerate = async () => {
+    if (disabled) return;
     if (!ollamaRunning) {
       showToast('Ollama를 실행한 뒤 다시 시도해주세요.', 'danger');
       return;
@@ -83,7 +85,12 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
         documentPath,
         startAge,
         endAge,
-        expertise,
+        readingExperiences,
+        expertise: Math.max(
+          ...readingExperiences.map((experience) => READING_EXPERIENCE_LEVELS[experience]),
+        ),
+        interests,
+        reactions,
         count,
       });
 
@@ -99,7 +106,11 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
   };
 
   return (
-    <div className={'rounded-xl border border-stone-200 bg-white/90 p-6 shadow-sm'}>
+    <LoadingOverlay
+      loading={overlayVisible}
+      label={overlayLabel}
+      className={'rounded-xl border border-stone-200 bg-white/90 p-6 shadow-sm'}
+    >
       <div
         className={'mb-6 flex items-center justify-between gap-4 border-b border-stone-100 pb-4'}
       >
@@ -142,95 +153,83 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
           </DnButton>
         </div>
       )}
-      <div
-        className={`flex flex-col gap-6 overflow-hidden transition-all ${open ? 'h-[360px]' : 'h-0'} ${disabled ? 'opacity-50' : ''}`}
-      >
-        <div className={'flex flex-col gap-3 px-2'}>
-          <div className={'flex items-center justify-between gap-3'}>
-            <div>
-              <div className={'typo-b4-b text-stone-900'}>연령대</div>
-              <div className={'typo-b6-r text-stone-400'}>댓글을 남길 독자의 나이 범위</div>
-            </div>
-            <div className={'typo-b5-b text-primary-500'}>
-              {startAge}대 ~ {endAge}대
-            </div>
-          </div>
-          <DnRangeSlider
-            minValue={10}
-            maxValue={80}
-            value={[startAge, endAge]}
-            onChange={([startAge, endAge]) => {
-              setStartAge(startAge);
-              setEndAge(endAge);
-            }}
-            step={10}
-            disabled={disabled}
-          />
-          <div className={'grid grid-cols-8 gap-1 text-[11px] leading-snug text-stone-400'}>
-            {AGE_STEPS.map((age) => (
-              <div
-                key={age}
-                className={`${age >= startAge && age <= endAge ? 'font-bold text-primary-500' : ''} text-center`}
-              >
-                {age}대
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={'flex flex-col gap-3 px-2'}>
-          <div className={'flex items-center justify-between gap-3'}>
-            <div>
-              <div className={'typo-b4-b text-stone-900'}>전문성</div>
-              <div className={'typo-b6-r text-stone-400'}>소설을 읽고 판단하는 기준의 깊이</div>
-            </div>
-            <div className={'typo-b5-b text-primary-500'}>{EXPERTISE_LABEL[expertise]}</div>
-          </div>
-          <DnSlider
-            minValue={0}
-            maxValue={100}
-            value={expertise}
-            onChange={setExpertise}
-            step={20}
-            disabled={disabled}
-          />
-          <div className={'grid grid-cols-6 gap-1 text-[11px] leading-snug text-stone-400'}>
-            {EXPERTISE_STEPS.map(({ value, label }) => (
-              <div
-                key={value}
-                className={`${value === expertise ? 'font-bold text-primary-500' : ''} text-center`}
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={'flex flex-col gap-3 px-2'}>
-          <div className={'flex items-center justify-between gap-3'}>
-            <div>
-              <div className={'typo-b4-b text-stone-900'}>개수</div>
-              <div className={'typo-b6-r text-stone-400'}>생성할 댓글 수</div>
-            </div>
-            <div className={'typo-b5-b text-primary-600'}>{count}개</div>
+      <div className={'flex flex-col gap-6'}>
+        <DnMultiChipGroup
+          label={'독서 경험'}
+          description={'함께 구성할 독자를 선택해주세요. 최소 하나를 선택해야 합니다.'}
+          options={READING_EXPERIENCE_OPTIONS}
+          value={readingExperiences}
+          onChange={setReadingExperiences}
+          disabled={disabled}
+        />
+        <DnMultiChipGroup
+          label={'관심사'}
+          description={'독자가 주목할 이야기 요소를 선택해주세요.'}
+          options={INTEREST_OPTIONS}
+          value={interests}
+          onChange={setInterests}
+          disabled={disabled}
+        />
+        <DnMultiChipGroup
+          label={'반응 성향'}
+          description={
+            '선호하는 반응을 선택해주세요. 원고에 근거 없는 비판이나 추측은 강제하지 않습니다.'
+          }
+          options={REACTION_OPTIONS}
+          value={reactions}
+          onChange={setReactions}
+          disabled={disabled}
+        />
+        <p className={'rounded-lg bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-500'}>
+          독자마다 선택한 경험·관심사·반응을 조합합니다. 각 항목을 고르게 배정하며, 댓글 수가 적으면
+          일부 선택 항목이 포함되지 않을 수 있습니다.
+        </p>
+        <div className={'flex flex-col gap-3'}>
+          <div className={'flex items-center justify-between'}>
+            <span className={'text-sm font-semibold text-stone-900'}>댓글 개수</span>
+            <span className={'text-xs font-medium text-primary-600'}>{count}개</span>
           </div>
           <DnChipGroup
+            className={'flex! flex-wrap'}
             options={COMMENT_COUNT_OPTIONS}
             value={count}
             onChange={setCount}
             disabled={disabled}
           />
         </div>
+        <details className={'rounded-xl border border-stone-200 bg-stone-50/50 p-4'}>
+          <summary className={'cursor-pointer text-sm font-medium text-stone-600'}>
+            보조 설정 · 연령대 {startAge}대 ~ {endAge}대
+          </summary>
+          <div className={'flex flex-col gap-3 pt-4'}>
+            <p className={'text-xs leading-5 text-stone-500'}>
+              연령은 말투에 약하게 반영하며, 독자의 이해력이나 반응을 제한하지 않습니다.
+            </p>
+            <DnRangeSlider
+              minValue={10}
+              maxValue={80}
+              value={[startAge, endAge]}
+              onChange={([startAge, endAge]) => {
+                setStartAge(startAge);
+                setEndAge(endAge);
+              }}
+              step={10}
+              disabled={disabled}
+            />
+            <div className={'grid grid-cols-8 gap-1 text-center text-xs text-stone-400'}>
+              {AGE_STEPS.map((age) => (
+                <span
+                  key={age}
+                  className={age >= startAge && age <= endAge ? 'font-medium text-primary-600' : ''}
+                >
+                  {age}대
+                </span>
+              ))}
+            </div>
+          </div>
+        </details>
       </div>
-      <div>
-        <button
-          onClick={() => setOpen(!open)}
-          className={`${open ? 'rotate-180' : ''} transition-all w-full flex justify-center`}
-        >
-          <RxDoubleArrowDown />
-        </button>
-      </div>
-    </div>
+    </LoadingOverlay>
   );
 };
 

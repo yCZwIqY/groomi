@@ -1,5 +1,6 @@
+import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
 import DnEditor from '~/components/editor/dn-editor';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDocumentSave } from './hooks/use-document-save';
 import { getOllamaRunning } from '~/lib/ollama-api';
 import { getSettingInfo } from '~/lib/electron/setting-api';
@@ -53,6 +54,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   } = useDocumentContent();
   const [showType, setShowType] = useState<ShowType>('SPLIT');
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
+  const openedGeneratedDraft = useRef<StoryMemoryDraft | null>(null);
   const { saving, dirty, saveError, clearSaveError, save } = useDocumentSave({
     workspaceData,
     draft,
@@ -70,15 +72,6 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   );
   const clearPendingStoryMemory = useBackgroundTasks((state) => state.clearPendingStoryMemory);
   const isBusy = useIsDocumentBusy(workspaceData.path);
-
-  useEffect(() => {
-    if (!pendingStoryMemoryDraft) {
-      return;
-    }
-
-    setStoryMemoryDraft(pendingStoryMemoryDraft);
-    clearPendingStoryMemory(workspaceData.path);
-  }, [pendingStoryMemoryDraft, workspaceData.path]);
 
   const handleSave = async () => {
     if (isBusy) {
@@ -120,6 +113,11 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   };
 
   const handleOpenStoryMemory = () => {
+    openedGeneratedDraft.current = pendingStoryMemoryDraft ?? null;
+    if (pendingStoryMemoryDraft) {
+      setStoryMemoryDraft({ ...pendingStoryMemoryDraft });
+      return;
+    }
     const savedMemory = workspaceData.document?.storyMemory;
 
     setStoryMemoryDraft({
@@ -132,11 +130,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
 
   return (
     <div className={'relative'}>
-      <div
-        className={
-          'h-[90dvh] min-w-0 bg-white rounded-lg p-4 shadow-md my-4 flex flex-col overflow-hidden'
-        }
-      >
+      <div className={'ui-card h-[90dvh] min-w-0 p-4 my-4 flex flex-col overflow-hidden'}>
         <div className={'flex items-center justify-between gap-4'}>
           <div className={'w-[300px]'}>
             <DnSwitch
@@ -145,12 +139,9 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
               setValue={setShowType}
             />
           </div>
-          <DnButton
-            onClick={handleOpenStoryMemory}
-            variant={'outlined'}
-          >
+          <StoryMemoryActionButton onClick={handleOpenStoryMemory}>
             사건·인물·떡밥 보기
-          </DnButton>
+          </StoryMemoryActionButton>
         </div>
         <div className={'flex flex-1 gap-4 p-4 overflow-hidden'}>
           {showType !== 'MANUSCRIPT' && (
@@ -243,6 +234,19 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
         documentPath={workspaceData.path}
         documentTitle={workspaceData.document?.title || workspaceData.name}
         draft={storyMemoryDraft}
+        onSaved={(memory) => {
+          if (
+            openedGeneratedDraft.current &&
+            useBackgroundTasks.getState().pendingStoryMemory[workspaceData.path] ===
+              openedGeneratedDraft.current
+          ) {
+            clearPendingStoryMemory(workspaceData.path);
+          }
+          onUpdated?.({
+            ...workspaceData,
+            document: { ...workspaceData.document, storyMemory: memory },
+          });
+        }}
       />
     </div>
   );

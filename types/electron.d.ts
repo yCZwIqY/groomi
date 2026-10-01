@@ -50,6 +50,7 @@ declare global {
   type StoryMemoryPlotHook = {
     description: string;
     plantedAt: string;
+    status?: 'unresolved' | 'resolved';
   };
 
   type StoryMemory = {
@@ -110,7 +111,10 @@ declare global {
     documentPath: string;
     startAge: number;
     endAge: number;
-    expertise: number;
+    expertise?: number;
+    readingExperiences?: Array<'입문' | '일반' | '숙련' | '창작 경험'>;
+    interests?: Array<'캐릭터' | '인물 관계' | '전개' | '세계관' | '문장'>;
+    reactions?: Array<'몰입' | '기대' | '의문' | '추측' | '분석' | '아쉬움' | '지적'>;
     count: number;
   };
 
@@ -118,6 +122,7 @@ declare global {
     id: string;
     content: string;
     tone: string | null;
+    interest: string | null;
     ageGroup: number | null;
     expertiseLevel: number | null;
     genre: string | null;
@@ -129,6 +134,7 @@ declare global {
   type AddCommentExamplePayload = {
     content: string;
     tone?: string | null;
+    interest?: string | null;
     ageGroup?: number | null;
     expertiseLevel?: number | null;
     genre?: string | null;

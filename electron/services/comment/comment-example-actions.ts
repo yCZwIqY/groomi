@@ -4,6 +4,7 @@ import type { WorkspaceServiceContext } from '../workspace-service-context.js';
 type AddCommentExamplePayload = {
   content: string;
   tone?: string | null;
+  interest?: string | null;
   ageGroup?: number | null;
   expertiseLevel?: number | null;
   genre?: string | null;
@@ -53,10 +54,17 @@ function normalizeCommentExampleInput(payload: AddCommentExamplePayload): Commen
   if (typeof payload.content !== 'string') {
     throw new Error('댓글 예시 content는 문자열이어야 합니다.');
   }
+  if (
+    payload.interest != null &&
+    !['캐릭터', '인물 관계', '전개', '세계관', '문장'].includes(payload.interest)
+  ) {
+    throw new Error('댓글 예시 관심사가 올바르지 않습니다.');
+  }
 
   return {
     content: payload.content,
     tone: normalizeOptionalString(payload.tone),
+    interest: normalizeOptionalString(payload.interest),
     ageGroup: normalizeOptionalNumber(payload.ageGroup, 'ageGroup'),
     gender: null,
     expertiseLevel: normalizeOptionalNumber(payload.expertiseLevel, 'expertiseLevel'),

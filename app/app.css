@@ -1,308 +1,319 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @font-face {
-    font-family: 'Suit';
-    src: url('/assets/fonts/SUIT-Variable.woff2') format('woff2');
-    font-weight: 100 900;
-    font-display: swap;
+  font-family: 'Suit';
+  src: url('/assets/fonts/SUIT-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
 }
 
 @theme {
-    --font-suit: "Suit", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-suit:
+    'Suit', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
 
-    --color-primary-100: #D3E0FB;
-    --color-primary-200: #A8C1F7;
-    --color-primary-300: #7CA1F3;
-    --color-primary-400: #5182EF;
-    --color-primary-500: #2563EB;
-    --color-primary-600: #244FAF;
-    --color-primary-700: #1D3C80;
-    --color-primary-800: #152851;
-    --color-primary-900: #0E1422;
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #d3e0fb;
+  --color-primary-200: #a8c1f7;
+  --color-primary-300: #7ca1f3;
+  --color-primary-400: #5182ef;
+  --color-primary-500: #2563eb;
+  --color-primary-600: #244faf;
+  --color-primary-700: #1d3c80;
+  --color-primary-800: #152851;
+  --color-primary-900: #0e1422;
 
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
 
-    --font-weight-light: 300;
-    --font-weight-regular: 400;
-    --font-weight-bold: 700;
-    --font-weight-black: 900;
+  --text-h1: 48px;
+  --text-h1--line-height: 1.18;
+  --text-h1--letter-spacing: -0.04em;
 
-    --text-h1: 48px;
-    --text-h1--line-height: 1.18;
-    --text-h1--letter-spacing: -0.04em;
+  --text-h2: 40px;
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.035em;
 
-    --text-h2: 40px;
-    --text-h2--line-height: 1.2;
-    --text-h2--letter-spacing: -0.035em;
+  --text-h3: 32px;
+  --text-h3--line-height: 1.25;
+  --text-h3--letter-spacing: -0.03em;
 
-    --text-h3: 32px;
-    --text-h3--line-height: 1.25;
-    --text-h3--letter-spacing: -0.03em;
+  --text-b1: 24px;
+  --text-b1--line-height: 1.45;
+  --text-b1--letter-spacing: -0.025em;
 
-    --text-b1: 24px;
-    --text-b1--line-height: 1.45;
-    --text-b1--letter-spacing: -0.025em;
+  --text-b2: 20px;
+  --text-b2--line-height: 1.5;
+  --text-b2--letter-spacing: -0.02em;
 
-    --text-b2: 20px;
-    --text-b2--line-height: 1.5;
-    --text-b2--letter-spacing: -0.02em;
+  --text-b3: 18px;
+  --text-b3--line-height: 1.55;
+  --text-b3--letter-spacing: -0.018em;
 
-    --text-b3: 18px;
-    --text-b3--line-height: 1.55;
-    --text-b3--letter-spacing: -0.018em;
+  --text-b4: 16px;
+  --text-b4--line-height: 1.6;
+  --text-b4--letter-spacing: -0.015em;
 
-    --text-b4: 16px;
-    --text-b4--line-height: 1.6;
-    --text-b4--letter-spacing: -0.015em;
+  --text-b5: 14px;
+  --text-b5--line-height: 1.55;
+  --text-b5--letter-spacing: -0.01em;
 
-    --text-b5: 14px;
-    --text-b5--line-height: 1.55;
-    --text-b5--letter-spacing: -0.01em;
-
-    --text-b6: 12px;
-    --text-b6--line-height: 1.5;
-    --text-b6--letter-spacing: -0.005em;
+  --text-b6: 12px;
+  --text-b6--line-height: 1.5;
+  --text-b6--letter-spacing: -0.005em;
 }
 
 html,
 body {
-    @apply bg-white;
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+  @apply bg-white;
+  color-scheme: light;
 
-    font-family: var(--font-suit), serif;
-    background:
-            radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 30%),
-            linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%);
+  font-family: var(--font-suit), serif;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 30%),
+    linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%);
 }
 
-
 @layer base {
-    html {
-        font-family: var(--font-sans);
-        color: #111827;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-    }
+  html {
+    font-family: var(--font-suit);
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-    body {
-        overflow: hidden;
-    }
+  body {
+    overflow: hidden;
+  }
 }
 
 @layer components {
-    /* Header */
-    .typo-h1-l {
-        @apply text-h1 font-light;
-    }
+  /* Header */
+  .typo-h1-l {
+    @apply text-h1 font-light;
+  }
 
-    .typo-h1-r {
-        @apply text-h1 font-regular;
-    }
+  .typo-h1-r {
+    @apply text-h1 font-regular;
+  }
 
-    .typo-h1-b {
-        @apply text-h1 font-bold;
-    }
+  .typo-h1-b {
+    @apply text-h1 font-bold;
+  }
 
-    .typo-h1-k {
-        @apply text-h1 font-black;
-    }
+  .typo-h1-k {
+    @apply text-h1 font-black;
+  }
 
-    .typo-h2-l {
-        @apply text-h2 font-light;
-    }
+  .typo-h2-l {
+    @apply text-h2 font-light;
+  }
 
-    .typo-h2-r {
-        @apply text-h2 font-regular;
-    }
+  .typo-h2-r {
+    @apply text-h2 font-regular;
+  }
 
-    .typo-h2-b {
-        @apply text-h2 font-bold;
-    }
+  .typo-h2-b {
+    @apply text-h2 font-bold;
+  }
 
-    .typo-h2-k {
-        @apply text-h2 font-black;
-    }
+  .typo-h2-k {
+    @apply text-h2 font-black;
+  }
 
-    .typo-h3-l {
-        @apply text-h3 font-light;
-    }
+  .typo-h3-l {
+    @apply text-h3 font-light;
+  }
 
-    .typo-h3-r {
-        @apply text-h3 font-regular;
-    }
+  .typo-h3-r {
+    @apply text-h3 font-regular;
+  }
 
-    .typo-h3-b {
-        @apply text-h3 font-bold;
-    }
+  .typo-h3-b {
+    @apply text-h3 font-bold;
+  }
 
-    .typo-h3-k {
-        @apply text-h3 font-black;
-    }
+  .typo-h3-k {
+    @apply text-h3 font-black;
+  }
 
-    /* Body */
-    .typo-b1-l {
-        @apply text-b1 font-light;
-    }
+  /* Body */
+  .typo-b1-l {
+    @apply text-b1 font-light;
+  }
 
-    .typo-b1-r {
-        @apply text-b1 font-regular;
-    }
+  .typo-b1-r {
+    @apply text-b1 font-regular;
+  }
 
-    .typo-b1-b {
-        @apply text-b1 font-bold;
-    }
+  .typo-b1-b {
+    @apply text-b1 font-bold;
+  }
 
-    .typo-b1-k {
-        @apply text-b1 font-black;
-    }
+  .typo-b1-k {
+    @apply text-b1 font-black;
+  }
 
-    .typo-b2-l {
-        @apply text-b2 font-light;
-    }
+  .typo-b2-l {
+    @apply text-b2 font-light;
+  }
 
-    .typo-b2-r {
-        @apply text-b2 font-regular;
-    }
+  .typo-b2-r {
+    @apply text-b2 font-regular;
+  }
 
-    .typo-b2-b {
-        @apply text-b2 font-bold;
-    }
+  .typo-b2-b {
+    @apply text-b2 font-bold;
+  }
 
-    .typo-b2-k {
-        @apply text-b2 font-black;
-    }
+  .typo-b2-k {
+    @apply text-b2 font-black;
+  }
 
-    .typo-b3-l {
-        @apply text-b3 font-light;
-    }
+  .typo-b3-l {
+    @apply text-b3 font-light;
+  }
 
-    .typo-b3-r {
-        @apply text-b3 font-regular;
-    }
+  .typo-b3-r {
+    @apply text-b3 font-regular;
+  }
 
-    .typo-b3-b {
-        @apply text-b3 font-bold;
-    }
+  .typo-b3-b {
+    @apply text-b3 font-bold;
+  }
 
-    .typo-b3-k {
-        @apply text-b3 font-black;
-    }
+  .typo-b3-k {
+    @apply text-b3 font-black;
+  }
 
-    .typo-b4-l {
-        @apply text-b4 font-light;
-    }
+  .typo-b4-l {
+    @apply text-b4 font-light;
+  }
 
-    .typo-b4-r {
-        @apply text-b4 font-regular;
-    }
+  .typo-b4-r {
+    @apply text-b4 font-regular;
+  }
 
-    .typo-b4-b {
-        @apply text-b4 font-bold;
-    }
+  .typo-b4-b {
+    @apply text-b4 font-bold;
+  }
 
-    .typo-b4-k {
-        @apply text-b4 font-black;
-    }
+  .typo-b4-k {
+    @apply text-b4 font-black;
+  }
 
-    .typo-b5-l {
-        @apply text-b5 font-light;
-    }
+  .typo-b5-l {
+    @apply text-b5 font-light;
+  }
 
-    .typo-b5-r {
-        @apply text-b5 font-regular;
-    }
+  .typo-b5-r {
+    @apply text-b5 font-regular;
+  }
 
-    .typo-b5-b {
-        @apply text-b5 font-bold;
-    }
+  .typo-b5-b {
+    @apply text-b5 font-bold;
+  }
 
-    .typo-b5-k {
-        @apply text-b5 font-black;
-    }
+  .typo-b5-k {
+    @apply text-b5 font-black;
+  }
 
-    .typo-b6-l {
-        @apply text-b6 font-light;
-    }
+  .typo-b6-l {
+    @apply text-b6 font-light;
+  }
 
-    .typo-b6-r {
-        @apply text-b6 font-regular;
-    }
+  .typo-b6-r {
+    @apply text-b6 font-regular;
+  }
 
-    .typo-b6-b {
-        @apply text-b6 font-bold;
-    }
+  .typo-b6-b {
+    @apply text-b6 font-bold;
+  }
 
-    .typo-b6-k {
-        @apply text-b6 font-black;
-    }
+  .typo-b6-k {
+    @apply text-b6 font-black;
+  }
 
-    .modal-overlay {
-        background: rgba(28, 25, 23, 0.16);
-        backdrop-filter: blur(6px);
-        transition:
-                opacity 220ms ease,
-                backdrop-filter 220ms ease;
-    }
+  .modal-overlay {
+    background: rgba(28, 25, 23, 0.16);
+    backdrop-filter: blur(6px);
+    transition:
+      opacity 220ms ease,
+      backdrop-filter 220ms ease;
+  }
 
-    .modal-overlay--open {
-        opacity: 1;
-    }
+  .modal-overlay--open {
+    opacity: 1;
+  }
 
-    .modal-overlay--closed {
-        opacity: 0;
-        backdrop-filter: blur(0px);
-        pointer-events: none;
-    }
+  .modal-overlay--closed {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    pointer-events: none;
+  }
 
-    .modal-surface {
-        transform-origin: top center;
-        transition:
-                opacity 220ms ease,
-                transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-                filter 220ms ease;
-    }
+  .modal-surface {
+    transform-origin: top center;
+    transition:
+      opacity 220ms ease,
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 220ms ease;
+  }
 
-    .modal-surface--open {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        filter: blur(0);
-    }
+  .modal-surface--open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 
-    .modal-surface--closed {
-        opacity: 0;
-        transform: translateY(16px) scale(0.96);
-        filter: blur(4px);
-        pointer-events: none;
-    }
+  .modal-surface--closed {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+    filter: blur(4px);
+    pointer-events: none;
+  }
 
-    .sidebar-shell {
-        backdrop-filter: blur(18px);
-    }
+  .sidebar-shell {
+    backdrop-filter: blur(18px);
+  }
 
-    .surface-panel {
-        @apply rounded-[26px] border border-white/70 bg-white/65 shadow-[0_18px_45px_rgba(15,23,42,0.06)] backdrop-blur;
-    }
+  .surface-panel {
+    @apply rounded-[26px] border border-white/70 bg-white/65 shadow-[0_18px_45px_rgba(15,23,42,0.06)] backdrop-blur;
+  }
 
-    .surface-card {
-        @apply rounded-2xl border border-stone-200 bg-white/80;
-    }
+  .surface-card {
+    @apply rounded-2xl border border-stone-200 bg-white/80;
+  }
 
-    .surface-field {
-        @apply rounded-2xl border border-stone-200 bg-stone-100/90;
-    }
+  .surface-field {
+    @apply rounded-2xl border border-stone-200 bg-stone-100/90;
+  }
 
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
 
-    ::-webkit-scrollbar-thumb {
-        background: rgba(120, 113, 108, 0.24);
-        border-radius: 999px;
-    }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(120, 113, 108, 0.24);
+    border-radius: 999px;
+  }
 
-    ::-webkit-scrollbar-track {
-        background: transparent;
-    }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .ui-card {
+    @apply rounded-xl border border-stone-200 bg-white;
+  }
+  .ui-section {
+    @apply rounded-xl border border-stone-200 bg-stone-50/70;
+  }
+  .ui-modal {
+    @apply max-w-[calc(100vw-2rem)] rounded-2xl border border-stone-200 bg-stone-50 p-6 text-stone-900;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+  }
 }

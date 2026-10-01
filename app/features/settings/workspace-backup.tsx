@@ -1,3 +1,4 @@
+import SettingsSection from '~/components/common/settings-section';
 import { useState } from 'react';
 import DnButton from '~/components/common/buttons/dn-button';
 import { backupWorkspace, restoreWorkspaceBackup } from '~/lib/electron-api';
@@ -35,13 +36,13 @@ export default function WorkspaceBackup() {
   };
 
   return (
-    <section className='rounded-lg bg-white p-6 shadow-md'>
-      <h2 className='mb-2 font-bold text-neutral-700'>원고 백업·복원</h2>
-      <p className='mb-4 text-sm text-neutral-500'>
-        원고, 휴지통, 댓글, 이미지와 AI 설정을 백업합니다. 백업 폴더 전체를 별도 드라이브에도
-        보관해주세요. 복원은 새 작업 폴더를 만듭니다.
-      </p>
-      <div className='flex gap-3'>
+    <SettingsSection
+      title={'원고 백업·복원'}
+      description={
+        '원고, 휴지통, 댓글, 이미지와 AI 설정을 백업합니다. 백업 폴더 전체를 별도 드라이브에도 보관해주세요. 복원은 새 작업 폴더를 만듭니다.'
+      }
+    >
+      <div className='flex flex-wrap gap-3'>
         <DnButton
           disabled={busy || hasRunningTask}
           onClick={() => run(false)}
@@ -62,6 +63,6 @@ export default function WorkspaceBackup() {
       {lastBackup && (
         <p className='mt-3 break-all text-sm text-neutral-500'>최근 백업: {lastBackup}</p>
       )}
-    </section>
+    </SettingsSection>
   );
 }

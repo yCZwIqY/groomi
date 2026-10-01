@@ -1,3 +1,4 @@
+import SettingsSection from '~/components/common/settings-section';
 import { useEffect, useState } from 'react';
 
 import { getSettingInfo, updateSelectedLLMModel } from '~/lib/electron/setting-api';
@@ -87,16 +88,12 @@ const AiSetting = () => {
   };
 
   return (
-    <section className={'w-full rounded-lg bg-white shadow-md'}>
-      <div
-        className={'flex items-start justify-between gap-4 border-b border-neutral-200 px-4 py-3'}
-      >
-        <div>
-          <div className={'text-sm font-bold text-neutral-600'}>AI 모델 설정</div>
-          <p className={'mt-1 text-xs text-neutral-400'}>댓글 생성, 회차 정보 요약에 사용할 llm 모델을 선택합니다.</p>
-        </div>
-      </div>
-      <div className={'p-4'}>
+    <SettingsSection
+      collapsible
+      title={'AI 모델 설정'}
+      description={'댓글 생성, 회차 정보 요약에 사용할 LLM 모델을 선택합니다.'}
+    >
+      <div>
         {!isRunning && (
           <div className='mb-3'>
             <div className='font-medium text-neutral-900'>Ollama를 찾을 수 없습니다.</div>
@@ -152,7 +149,7 @@ const AiSetting = () => {
           </ul>
         </div>
       </div>
-    </section>
+    </SettingsSection>
   );
 };
 

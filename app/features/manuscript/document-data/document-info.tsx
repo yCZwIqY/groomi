@@ -40,7 +40,7 @@ const DocumentInfo = ({ workspaceData, onUpdated }: Props) => {
   };
 
   return (
-    <section className={'shadow-sm p-5 w-full bg-white rounded-lg flex gap-4'}>
+    <section className={'ui-card p-5 w-full flex gap-4'}>
       <div className={'flex flex-col flex-1'}>
         <div className={'flex flex-col gap-2'}>
           <h3 className={'text-2xl font-bold text-neutral-700'}>

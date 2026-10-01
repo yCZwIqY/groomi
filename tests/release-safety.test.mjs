@@ -13,6 +13,7 @@ import { readStore } from '../dist-electron/services/workspace/store.js';
 import { all, run, withDatabase } from '../dist-electron/db/connection.js';
 import { nextDeletionTime } from '../dist-electron/services/workspace/shared.js';
 import { createDocumentCommentRepository } from '../dist-electron/repositories/document-comment-repository.js';
+import ollama from 'ollama';
 
 const text = (content) => ({
   content,
@@ -21,6 +22,88 @@ const text = (content) => ({
   createdAt: '2026-09-30',
   updatedAt: '2026-09-30',
 });
+
+test('resolved hooks persist, remain editable, and are excluded from comment context', async (t) => {
+  const { service, workspace, node } = await fixture(t);
+  const hooks = [
+    { description: 'resolved-secret', plantedAt: 'first', status: 'resolved' },
+    { description: 'open-secret', plantedAt: 'first', status: 'unresolved' },
+    { description: 'legacy-secret', plantedAt: 'first' },
+  ];
+  const memory = { synopsis: '', events: [], characters: [], plotHooks: hooks };
+  await service.saveStoryMemory(node.path, memory);
+  assert.deepEqual((await service.getDocument(node.path)).document.storyMemory.plotHooks, hooks);
+  hooks[0].description = 'edited-resolved-secret';
+  await service.saveStoryMemory(node.path, memory);
+  assert.deepEqual((await service.getLatestStoryMemory(workspace)).plotHooks, hooks);
+
+  const next = await service.createDocument(workspace, 'second');
+  await service.updateSelectedLLMModel('test-model');
+  const prompts = [];
+  t.mock.method(ollama, 'chat', async (payload) => {
+    prompts.push(payload.messages.map((message) => message.content).join('\n'));
+    return {
+      message: { content: JSON.stringify({ comments: [{ content: 'test', tone: 'test' }] }) },
+    };
+  });
+  await service.generateComments({
+    documentPath: next.path,
+    startAge: 20,
+    endAge: 20,
+    expertise: 20,
+    count: 1,
+  });
+  assert.ok(prompts[0].includes('open-secret'));
+  assert.ok(prompts[0].includes('legacy-secret'));
+  assert.ok(!prompts[0].includes('edited-resolved-secret'));
+
+  ollama.chat.mock.mockImplementation(async (payload) => {
+    prompts.push(payload.messages.map((message) => message.content).join('\n'));
+    return { message: { content: JSON.stringify({ ...memory, plotHooks: [] }) } };
+  });
+  const generated = await service.generateStoryMemory(next.path);
+  assert.ok(prompts[1].includes('edited-resolved-secret'));
+  assert.deepEqual(generated.plotHooks, hooks);
+  assert.deepEqual((await service.getDocument(next.path)).document.storyMemory.plotHooks, hooks);
+  await service.createDocument(workspace, '정보 없는 최신 회차');
+  assert.equal(await service.getLatestStoryMemory(workspace), null);
+});
+
+test('generated memory persists without overwriting manuscript edits and stays within its group', async (t) => {
+  const { service, workspace } = await fixture(t);
+  const group = await service.createWorkspace(path.join(workspace, '그룹'), 'long');
+  const other = await service.createWorkspace(path.join(workspace, '다른 그룹'), 'long');
+  const chapter = await service.createDocument(group.path, '첫 회차');
+  const generated = {
+    synopsis: '최신 줄거리',
+    events: [{ description: '주요 사건', importance: '상' }],
+    characters: [],
+    plotHooks: [],
+  };
+  await service.updateSelectedLLMModel('test-model');
+  t.mock.method(ollama, 'chat', async () => {
+    await service.updateDocument(chapter.path, {
+      document: { manuscript: text('생성 중 추가한 원고') },
+    });
+    return { message: { content: JSON.stringify(generated) } };
+  });
+  await service.generateStoryMemory(chapter.path);
+  assert.equal(
+    (await service.getDocument(chapter.path)).document.manuscript.content,
+    '생성 중 추가한 원고',
+  );
+  const lastChapter = await service.createDocument(group.path, '마지막 회차');
+  assert.equal(await service.getLatestStoryMemory(group.path), null);
+  await service.saveStoryMemory(lastChapter.path, { ...generated, synopsis: '마지막 회차 줄거리' });
+  await service.saveStoryMemory(chapter.path, { ...generated, synopsis: '나중에 수정한 첫 회차' });
+  assert.equal((await service.getLatestStoryMemory(group.path)).synopsis, '마지막 회차 줄거리');
+  assert.equal(await service.getLatestStoryMemory(other.path), null);
+  await service.removeDocument(chapter.path);
+  assert.equal((await service.getLatestStoryMemory(group.path)).synopsis, '마지막 회차 줄거리');
+  await service.removeDocument(lastChapter.path);
+  assert.equal(await service.getLatestStoryMemory(group.path), null);
+});
+
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'groomi-safety-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -32,6 +115,132 @@ async function fixture(t) {
   const file = path.join(workspace, 'scripts', `${node.id}.json`);
   return { root, workspace, service, node, file };
 }
+
+test('comment personas balance interests and reactions independently of expertise', async (t) => {
+  const { service, node } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const requests = [];
+  t.mock.method(ollama, 'chat', async ({ messages }) => {
+    const prompt = messages.find((message) => message.role === 'user').content;
+    const slots = [
+      ...prompt.matchAll(
+        /\d+\. ageGroup=(\d+), expertiseLevel=(\d+), expertiseLabel="([^"]+)", interest="([^"]+)", reaction="([^"]+)"/g,
+      ),
+    ];
+    requests.push({ prompt, slots });
+    return {
+      message: {
+        content: JSON.stringify({
+          comments: slots.map(() => ({ content: '장면에 대한 반응', tone: '몰입' })),
+        }),
+      },
+    };
+  });
+  const comments = await service.generateComments({
+    documentPath: node.path,
+    startAge: 20,
+    endAge: 20,
+    expertise: 0,
+    count: 40,
+  });
+  const slots = requests[0].slots;
+  assert.equal(slots.length, 40);
+  assert.ok(slots.every((slot) => slot[1] === '20' && slot[2] === '0'));
+  const interests = new Map();
+  const reactions = new Map();
+  for (const slot of slots) {
+    interests.set(slot[4], (interests.get(slot[4]) ?? 0) + 1);
+    reactions.set(slot[5], (reactions.get(slot[5]) ?? 0) + 1);
+  }
+  assert.equal(interests.size, 5);
+  assert.ok([...interests.values()].every((count) => count === 8));
+  assert.equal(reactions.size, 8);
+  assert.ok([...reactions.values()].every((count) => count === 5));
+  assert.ok(comments.every((comment) => comment.expertiseLevel === 0));
+  assert.ok(requests[0].prompt.includes('높은 전문성을 비판이나 부정적 반응과 동일시하지 않는다'));
+  assert.ok(!requests[0].prompt.includes('ageGroup이 어릴수록 단순'));
+
+  await service.generateComments({
+    documentPath: node.path,
+    startAge: 20,
+    endAge: 30,
+    expertise: 20,
+    count: 12,
+  });
+  const combinations = new Map();
+  for (const slot of requests[1].slots) {
+    const key = slot[1] + ':' + slot[2];
+    combinations.set(key, (combinations.get(key) ?? 0) + 1);
+    assert.ok(Number(slot[2]) <= 20);
+  }
+  assert.equal(combinations.size, 4);
+  assert.ok([...combinations.values()].every((count) => count === 3));
+});
+
+test('selected persona chips limit slots, style examples and saved metadata', async (t) => {
+  const { service, node } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  await service.addCommentExample({ content: 'selected-style-example', expertiseLevel: 60 });
+  await service.addCommentExample({ content: 'unselected-style-example', expertiseLevel: 40 });
+  let prompt = '';
+  t.mock.method(ollama, 'chat', async ({ messages }) => {
+    prompt = messages.find((message) => message.role === 'user').content;
+    return {
+      message: {
+        content: JSON.stringify({
+          comments: Array.from({ length: 10 }, () => ({
+            content: '반응',
+            tone: '지적',
+            expertiseLevel: 100,
+          })),
+        }),
+      },
+    };
+  });
+  const payload = {
+    documentPath: node.path,
+    startAge: 20,
+    endAge: 20,
+    count: 10,
+    readingExperiences: ['입문', '숙련'],
+    expertise: 80,
+    interests: ['문장'],
+    reactions: ['몰입'],
+  };
+  const comments = await service.generateComments(payload);
+  const slots = [
+    ...prompt.matchAll(
+      /\d+\. ageGroup=(\d+), expertiseLevel=(\d+), expertiseLabel="([^"]+)", interest="([^"]+)", reaction="([^"]+)"/g,
+    ),
+  ];
+  assert.equal(slots.length, 10);
+  assert.equal(slots.filter((slot) => slot[2] === '0').length, 5);
+  assert.equal(slots.filter((slot) => slot[2] === '60').length, 5);
+  assert.ok(slots.every((slot) => slot[4] === '문장' && slot[5] === '몰입'));
+  assert.ok(prompt.includes('selected-style-example'));
+  assert.ok(!prompt.includes('unselected-style-example'));
+  assert.ok(
+    comments.every(
+      (comment) => [0, 60].includes(comment.expertiseLevel) && comment.tone === '몰입',
+    ),
+  );
+  for (const field of ['readingExperiences', 'interests', 'reactions']) {
+    await assert.rejects(service.generateComments({ ...payload, [field]: [] }), /최소 하나/);
+    await assert.rejects(
+      service.generateComments({ ...payload, [field]: ['invalid'] }),
+      /최소 하나/,
+    );
+  }
+  await assert.rejects(
+    service.generateComments({ ...payload, startAge: 40, endAge: 20 }),
+    /조건이 올바르지/,
+  );
+  await assert.rejects(service.generateComments({ ...payload, count: 0 }), /조건이 올바르지/);
+  ollama.chat.mock.mockImplementation(async () => ({
+    message: { content: JSON.stringify({ comments: [null] }) },
+  }));
+  await assert.rejects(service.generateComments({ ...payload, count: 1 }), /1번째 항목이 올바르지/);
+});
 
 test('corrupt or missing manuscripts fail visibly and cannot be overwritten silently', async (t) => {
   const { service, node, file, workspace } = await fixture(t);
@@ -255,7 +464,7 @@ test('version 1 workspace upgrades without losing existing manuscripts or settin
   await service.updateDocument(node.path, { document: { draft: text('업데이트 후 저장') } });
   assert.equal((await service.getDocument(node.path)).document.draft.content, '업데이트 후 저장');
   const versions = await withDatabase(workspace, (db) => all(db, 'PRAGMA user_version'));
-  assert.equal(versions[0].user_version, 2);
+  assert.equal(versions[0].user_version, 3);
 });
 
 test('newer workspace format is rejected without downgrading its schema', async (t) => {
@@ -264,4 +473,71 @@ test('newer workspace format is rejected without downgrading its schema', async 
   await assert.rejects(service.initCurrentWorkspace(), /최신 버전/);
   const versions = await withDatabase(workspace, (db) => all(db, 'PRAGMA user_version'));
   assert.equal(versions[0].user_version, 99);
+});
+
+test('style examples upgrade legacy ages and preserve old reading experience metadata', async (t) => {
+  const { service, workspace, node } = await fixture(t);
+  const old = await service.addCommentExample({
+    content: 'legacy-example',
+    ageGroup: 2,
+    expertiseLevel: 20,
+    tone: '의문',
+  });
+  await withDatabase(workspace, async (db) => {
+    await run(db, 'ALTER TABLE comment_examples DROP COLUMN interest');
+    await run(db, 'PRAGMA user_version = 2');
+  });
+  await service.initCurrentWorkspace();
+  const upgraded = (await service.listCommentExamples()).find((example) => example.id === old.id);
+  assert.equal(upgraded.ageGroup, 30);
+  assert.equal(upgraded.expertiseLevel, 20);
+  assert.equal(upgraded.interest, null);
+  const saved = await service.addCommentExample({
+    content: 'matching-interest-example',
+    ageGroup: 30,
+    expertiseLevel: 40,
+    interest: '문장',
+    tone: '의문',
+  });
+  assert.equal(saved.interest, '문장');
+  await service.addCommentExample({
+    content: 'wrong-interest-example',
+    interest: '세계관',
+    expertiseLevel: 40,
+  });
+  await service.addCommentExample({
+    content: 'wrong-reaction-example',
+    interest: '문장',
+    expertiseLevel: 40,
+    tone: '지적',
+  });
+  await service.updateSelectedLLMModel('test-model');
+  let prompt;
+  t.mock.method(ollama, 'chat', async ({ messages }) => {
+    prompt = messages.find((message) => message.role === 'user').content;
+    return {
+      message: {
+        content: JSON.stringify({ comments: [{ content: '문장에 대한 질문', tone: '의문' }] }),
+      },
+    };
+  });
+  await service.generateComments({
+    documentPath: node.path,
+    startAge: 30,
+    endAge: 30,
+    count: 1,
+    readingExperiences: ['일반'],
+    interests: ['문장'],
+    reactions: ['의문'],
+  });
+  assert.ok(prompt.includes('legacy-example'));
+  assert.ok(prompt.includes('matching-interest-example'));
+  assert.ok(prompt.includes('관심사 문장'));
+  assert.ok(!prompt.includes('wrong-interest-example'));
+  assert.ok(!prompt.includes('wrong-reaction-example'));
+  assert.equal((await service.getDocument(node.path)).document.draft.content, '첫 저장 원고');
+  await assert.rejects(
+    service.addCommentExample({ content: 'invalid', interest: 'invalid' }),
+    /관심사/,
+  );
 });

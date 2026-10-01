@@ -1,1 +1,1 @@
-export * from './ai-setting'
+export * from './ai-setting';

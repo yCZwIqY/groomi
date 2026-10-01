@@ -23,21 +23,21 @@ interface Props extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
 const styles = tv({
   slots: {
     root: 'relative',
-    label: 'mb-2 block text-sm font-semibold text-neutral-900',
+    label: 'mb-2 block text-sm font-semibold text-stone-900',
     trigger:
-      'flex h-11 w-full items-center justify-between gap-3 rounded-md border border-neutral-300 bg-white px-3 text-left shadow-sm outline-none transition hover:border-neutral-400 focus:border-primary-500 focus:ring-3 focus:ring-primary-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400',
-    triggerText: 'min-w-0 flex-1 truncate text-sm font-medium text-neutral-900',
-    placeholder: 'min-w-0 flex-1 truncate text-sm text-neutral-400',
-    icon: 'shrink-0 text-lg text-neutral-400 transition',
-    menu: 'absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg outline-none',
+      'flex h-9 w-full items-center justify-between gap-3 rounded-lg border border-stone-300 bg-white px-3 text-left outline-none transition hover:border-stone-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-400',
+    triggerText: 'min-w-0 flex-1 truncate text-sm font-medium text-stone-900',
+    placeholder: 'min-w-0 flex-1 truncate text-sm text-stone-400',
+    icon: 'shrink-0 text-lg text-stone-400 transition',
+    menu: 'absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-lg border border-stone-200 bg-white p-1 shadow-lg outline-none',
     option:
-      'w-full rounded px-3 py-2 text-left transition hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none',
-    optionLabel: 'block truncate text-sm font-medium text-neutral-900',
-    optionDescription: 'mt-0.5 block truncate text-xs text-neutral-500',
+      'w-full rounded px-3 py-2 text-left transition hover:bg-stone-100 focus:bg-stone-100 focus:outline-none',
+    optionLabel: 'block truncate text-sm font-medium text-stone-900',
+    optionDescription: 'mt-0.5 block truncate text-xs text-stone-500',
     selectedOption: 'bg-primary-50 hover:bg-primary-50',
     selectedLabel: 'text-primary-700',
-    empty: 'px-3 py-2 text-sm text-neutral-400',
-    hint: 'mt-1.5 text-xs text-neutral-500',
+    empty: 'px-3 py-2 text-sm text-stone-400',
+    hint: 'mt-1.5 text-xs text-stone-500',
   },
   variants: {
     open: {

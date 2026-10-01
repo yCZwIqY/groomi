@@ -67,6 +67,19 @@ app
     await service.setCurrentWorkspacePath(workspace);
     const first = await service.createDocument(workspace, '첫 회차');
     const second = await service.createDocument(workspace, '두 번째 회차');
+    const seededText = (content) => ({
+      content,
+      charsWithSpaces: content.length,
+      charsWithoutSpaces: content.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await service.updateDocument(first.path, {
+      document: {
+        draft: seededText('<p>기존에 저장된 초안</p>'),
+        manuscript: seededText('<p>기존에 저장된 원고</p>'),
+      },
+    });
     const { registerIpcHandlers } = await load('ipc/index.js');
     registerIpcHandlers(app);
     const { ipcMain } = require('electron');
@@ -108,6 +121,14 @@ app
         ),
       'editors',
     );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`(() => {
+        const editors = document.querySelectorAll('[contenteditable="true"]');
+        return editors[0]?.textContent === '기존에 저장된 초안' && editors[1]?.textContent === '기존에 저장된 원고';
+      })()`),
+      'saved draft and manuscript hydration',
+    );
 
     await edit('이동 직전 입력');
     await click('두 번째 회차');
@@ -140,6 +161,50 @@ app
       ),
     );
     console.log('PASS: route navigation flushes the manuscript');
+
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
+      section.querySelector('button[aria-expanded]').click();
+    })()`);
+    await click('일반');
+    await click('문장');
+    await click('질문');
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
+      section.querySelector('summary').click();
+      section.querySelector('textarea').focus();
+    })()`);
+    await click('30대');
+    window.webContents.insertText('설정에서 저장한 문장 질문 예시');
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
+      section.querySelector('button[aria-expanded]').click();
+    })()`);
+    assert.ok(await window.webContents.executeJavaScript(`(() => {
+      const toggle = document.querySelector('button[aria-controls][aria-expanded="false"]');
+      return toggle && document.getElementById(toggle.getAttribute('aria-controls')).hidden;
+    })()`));
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
+      section.querySelector('button[aria-expanded]').click();
+    })()`);
+    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('textarea').value`), '설정에서 저장한 문장 질문 예시');
+    await click('예시 저장');
+    await until(
+      async () =>
+        (await service.listCommentExamples()).some(
+          (example) => example.content === '설정에서 저장한 문장 질문 예시',
+        ),
+      'style example saved',
+    );
+    const styleExample = (await service.listCommentExamples()).find(
+      (example) => example.content === '설정에서 저장한 문장 질문 예시',
+    );
+    assert.equal(styleExample.expertiseLevel, 40);
+    assert.equal(styleExample.interest, '문장');
+    assert.equal(styleExample.tone, '의문');
+    assert.equal(styleExample.ageGroup, 30);
+    console.log('PASS: style example chips save reading experience, interest, reaction and age');
 
     await click('첫 회차');
     await until(
@@ -241,6 +306,57 @@ app
       'save completion',
     );
     console.log('PASS: edits during an in-flight save are persisted');
+
+    await edit('회차 정보 저장 후에도 유지할 원고');
+    await click('사건·인물·떡밥 보기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `Boolean(document.querySelector('.modal-overlay--open textarea'))`,
+        ),
+      'story memory modal',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const modal = document.querySelector('.modal-overlay--open');
+      [...modal.querySelectorAll('button')].find((button) => button.textContent.trim() === '저장').click();
+    })()`);
+    await until(
+      () => window.webContents.executeJavaScript(`!document.querySelector('.modal-overlay--open')`),
+      'story memory saved',
+    );
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[contenteditable="true"]').textContent`,
+      ),
+      '회차 정보 저장 후에도 유지할 원고',
+    );
+    await click('두 번째 회차');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('input')?.value === '두 번째 회차'`,
+        ),
+      'switch after memory save',
+    );
+    assert.ok(
+      (await service.getDocument(first.path)).document.draft.content.includes(
+        '회차 정보 저장 후에도 유지할 원고',
+      ),
+    );
+    await click('첫 회차');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[contenteditable="true"]')?.textContent === '회차 정보 저장 후에도 유지할 원고'`,
+        ),
+      'reopen after memory save',
+    );
+    console.log('PASS: story memory save preserves manuscript edits through chapter switching');
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const reopened = await service.getDocument(first.path);
+    assert.ok(reopened.document.draft.content.includes('회차 정보 저장 후에도 유지할 원고'));
+    assert.ok(reopened.document.manuscript.content.includes('기존에 저장된 원고'));
+    console.log('PASS: hydration does not autosave empty draft or manuscript');
 
     await edit('종료 직전 입력');
     window.close();

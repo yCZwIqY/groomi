@@ -82,7 +82,20 @@ export async function initializeSchema(db: sqlite3.Database) {
     await run(db, statement);
   }
 
-  await run(db, `PRAGMA user_version = ${WORKSPACE_SCHEMA_VERSION}`);
+  await withTransaction(db, async () => {
+    const exampleColumns = await all<{ name: string }>(db, 'PRAGMA table_info(comment_examples)');
+    if (!exampleColumns.some((column) => column.name === 'interest')) {
+      await run(db, 'ALTER TABLE comment_examples ADD COLUMN interest TEXT');
+    }
+    if ((versions[0]?.user_version ?? 0) < 3) {
+      // The old settings selector stored the index (0–7) instead of the decade (10–80).
+      await run(
+        db,
+        'UPDATE comment_examples SET ageGroup = (ageGroup + 1) * 10 WHERE ageGroup BETWEEN 0 AND 7',
+      );
+    }
+    await run(db, `PRAGMA user_version = ${WORKSPACE_SCHEMA_VERSION}`);
+  });
 }
 
 export async function withTransaction<Result>(

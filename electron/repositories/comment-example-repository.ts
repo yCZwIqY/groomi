@@ -9,6 +9,7 @@ export type CommentExample = {
   id: string;
   content: string;
   tone: string | null;
+  interest: string | null;
   ageGroup: number | null;
   gender: CommentExampleGender | null;
   expertiseLevel: number | null;
@@ -21,6 +22,7 @@ export type CommentExample = {
 export type CommentExampleInput = {
   content: string;
   tone?: string | null;
+  interest?: string | null;
   ageGroup?: number | null;
   gender?: CommentExampleGender | null;
   expertiseLevel?: number | null;
@@ -32,6 +34,9 @@ export type FindStyleExamplesOptions = {
   startAge: number;
   endAge: number;
   expertise: number;
+  expertiseLevels?: number[];
+  interests?: string[];
+  reactions?: string[];
   limit?: number;
 };
 
@@ -43,7 +48,7 @@ export function createCommentExampleRepository(db: sqlite3.Database) {
       return all<CommentExample>(
         db,
         `
-          SELECT id, content, tone, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
+          SELECT id, content, tone, interest, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
           FROM comment_examples
           ORDER BY updatedAt DESC
         `,
@@ -56,15 +61,24 @@ export function createCommentExampleRepository(db: sqlite3.Database) {
       return all<CommentExample>(
         db,
         `
-          SELECT id, content, tone, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
+          SELECT id, content, tone, interest, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
           FROM comment_examples
           WHERE
             (ageGroup IS NULL OR ageGroup BETWEEN ? AND ?)
-            AND (expertiseLevel IS NULL OR expertiseLevel <= ?)
+            AND (expertiseLevel IS NULL OR ${options.expertiseLevels?.length ? `CASE expertiseLevel WHEN 20 THEN 40 WHEN 100 THEN 80 ELSE expertiseLevel END IN (${options.expertiseLevels.map(() => '?').join(', ')})` : 'expertiseLevel <= ?'})
+            ${options.interests?.length ? `AND (interest IS NULL OR interest IN (${options.interests.map(() => '?').join(', ')}))` : ''}
+            ${options.reactions?.length ? `AND (tone IS NULL OR tone IN (${options.reactions.map(() => '?').join(', ')}))` : ''}
           ORDER BY RANDOM()
           LIMIT ?
         `,
-        [options.startAge, options.endAge, options.expertise, limit],
+        [
+          options.startAge,
+          options.endAge,
+          ...(options.expertiseLevels?.length ? options.expertiseLevels : [options.expertise]),
+          ...(options.interests ?? []),
+          ...(options.reactions ?? []),
+          limit,
+        ],
       );
     },
 
@@ -74,6 +88,7 @@ export function createCommentExampleRepository(db: sqlite3.Database) {
         id: crypto.randomUUID(),
         content: input.content.trim(),
         tone: normalizeOptionalString(input.tone),
+        interest: normalizeOptionalString(input.interest),
         ageGroup: input.ageGroup ?? null,
         gender: input.gender ?? null,
         expertiseLevel: input.expertiseLevel ?? null,
@@ -91,14 +106,15 @@ export function createCommentExampleRepository(db: sqlite3.Database) {
         db,
         `
           INSERT INTO comment_examples (
-            id, content, tone, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
+            id, content, tone, interest, ageGroup, gender, expertiseLevel, genre, source, createdAt, updatedAt
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           example.id,
           example.content,
           example.tone,
+          example.interest,
           example.ageGroup,
           example.gender,
           example.expertiseLevel,

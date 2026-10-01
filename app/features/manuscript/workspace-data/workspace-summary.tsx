@@ -1,3 +1,4 @@
+import { uiFieldClass } from '~/components/common/ui-styles';
 import { useEffect, useState } from 'react';
 import { FaCamera } from 'react-icons/fa';
 import { AiOutlineCalendar, AiOutlineClockCircle } from 'react-icons/ai';
@@ -80,7 +81,7 @@ const WorkspaceSummary = ({ workspaceData, onUpdated }: Props) => {
   };
 
   return (
-    <section className={'shadow-sm p-5 w-full bg-white rounded-lg flex gap-4'}>
+    <section className={'ui-card p-5 w-full flex gap-4'}>
       <div className={'w-[180px] h-[220px] shrink-0'}>
         {coverSrc ? (
           <div
@@ -174,7 +175,7 @@ const WorkspaceSummary = ({ workspaceData, onUpdated }: Props) => {
                 },
               })
             }
-            className={'w-full h-full flex flex-1 resize-none p-2'}
+            className={`w-full h-full flex flex-1 resize-none ${uiFieldClass}`}
           />
         </div>
       </div>

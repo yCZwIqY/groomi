@@ -1,3 +1,4 @@
+import SettingsSection from '~/components/common/settings-section';
 import { formatDate } from '../../../../utils/date-utils';
 import { AiOutlineFile, AiOutlineFolder } from 'react-icons/ai';
 import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
@@ -10,10 +11,12 @@ interface Props {
 
 const TrashList = ({ items, onRestore, onDelete }: Props) => {
   return (
-    <section className={'w-full rounded-lg bg-white shadow-md'}>
-      <div className={'border-b border-neutral-200 px-4 py-3 text-sm font-bold text-neutral-600'}>
-        휴지통
-      </div>
+    <SettingsSection
+      collapsible
+      title={'휴지통'}
+      description={'삭제한 항목을 복원하거나 영구 삭제합니다.'}
+      count={items.length}
+    >
       <div className={'divide-y divide-neutral-100'}>
         {items.length === 0 ? (
           <div className={'px-4 py-6 text-sm text-neutral-400'}>휴지통이 비어 있습니다.</div>
@@ -91,7 +94,7 @@ const TrashList = ({ items, onRestore, onDelete }: Props) => {
           ))
         )}
       </div>
-    </section>
+    </SettingsSection>
   );
 };
 

@@ -1,11 +1,14 @@
 import { useWorkspacePath } from '~/hooks';
 import { useModal } from '~/hooks/use-modal';
 import DnInput from '~/components/common/inputs/dn-input';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
 import DnButton from '~/components/common/buttons/dn-button';
 import { DnChipGroup } from '~/components/common/chip-group';
 import { showToast } from '~/lib/toast-manager';
 import { createDocument } from '~/lib/electron/document-api';
+import { getWorkspaceInfo } from '~/lib/electron/workspace-api';
 import { AiOutlineArrowLeft, AiOutlineClose, AiOutlineFolderOpen } from 'react-icons/ai';
 import { CiFileOn } from 'react-icons/ci';
 
@@ -22,7 +25,11 @@ interface Props {
   onCreated?: () => void;
 }
 const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
+  const navigate = useNavigate();
+  const setSelectedWorkspace = useSelectedWorkspace((state) => state.setSelectedWorkspace);
   const { workspacePath, createNewWorkspace } = useWorkspacePath();
+  const creationInProgress = useRef(false);
+  const [creating, setCreating] = useState(false);
   const [parentGroup, setParentGroup] = useState(targetPath || workspacePath);
   const [nodeType, setNodeType] = useState<NodeType | null>(null);
   const [novelType, setNovelType] = useState<NovelType>('long');
@@ -50,11 +57,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
   const { portal, isOpen, setIsOpen } = useModal(
     {
       content: (
-        <div
-          className={
-            'w-[320px] rounded-[28px] bg-stone-50 p-8 text-stone-900 shadow-[0_30px_90px_rgba(15,23,42,0.22)] ring-1 ring-white/70'
-          }
-        >
+        <div className={'ui-modal w-[320px]'}>
           <div className={'flex items-center justify-between pb-6'}>
             {nodeType ? (
               <button
@@ -119,8 +122,8 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                     value={novelType}
                   />
                   <p className={'mt-2 typo-b6-r text-stone-400'}>
-                    단편은 화차별로 줄거리를 이어가지 않고, 각 회차의 사건·인물·떡밥을
-                    독립적으로 관리합니다.
+                    단편은 화차별로 줄거리를 이어가지 않고, 각 회차의 사건·인물·떡밥을 독립적으로
+                    관리합니다.
                   </p>
                 </div>
               )}
@@ -138,6 +141,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
               <div className={'pt-5'}>
                 <DnButton
                   className={'w-full'}
+                  loading={creating}
                   onClick={() => void handleCreate()}
                 >
                   생성
@@ -148,27 +152,37 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
         </div>
       ),
     },
-    [parentGroup, nodeType, novelType, name],
+    [parentGroup, nodeType, novelType, name, creating],
   );
 
   const handleCreate = async () => {
+    if (creationInProgress.current || !nodeType) return;
     if (!name) {
       showToast('이름을 입력해주세요.', 'danger');
       return;
     }
 
+    creationInProgress.current = true;
+    setCreating(true);
     try {
+      let createdNode: WorkspaceNode;
       if (nodeType === 'workspace') {
-        await createNewWorkspace(parentGroup, name, novelType);
+        const created = await createNewWorkspace(parentGroup, name, novelType);
+        createdNode = await getWorkspaceInfo(created.path);
       } else {
-        await createDocument(parentGroup, name);
+        createdNode = await createDocument(parentGroup, name);
       }
 
       onCreated?.();
       setIsOpen(false);
       resetForm();
+      const selected = await setSelectedWorkspace(createdNode);
+      if (selected) navigate('/manuscript');
     } catch (error) {
       showToast((error as Error).message, 'danger');
+    } finally {
+      creationInProgress.current = false;
+      setCreating(false);
     }
   };
 

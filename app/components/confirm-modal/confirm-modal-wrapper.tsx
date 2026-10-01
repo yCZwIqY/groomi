@@ -9,6 +9,7 @@ interface Props {
   onConfirm?: () => void;
   confirmVariant?: Variants | 'red' | 'red-outline';
   confirmLabel?: ReactNode;
+  triggerLabel?: string;
 }
 const ConfirmModalWrapper = ({
   children,
@@ -16,14 +17,11 @@ const ConfirmModalWrapper = ({
   onConfirm,
   confirmVariant = 'primary',
   confirmLabel,
+  triggerLabel,
 }: Props) => {
   const { portal, isOpen, setIsOpen } = useModal({
     content: (
-      <div
-        className={
-          'w-[320px] rounded-[28px] bg-stone-50 p-8 text-stone-900 shadow-[0_30px_90px_rgba(15,23,42,0.22)] ring-1 ring-white/70 flex flex-col gap-2'
-        }
-      >
+      <div className={'ui-modal w-[320px] flex flex-col gap-2'}>
         <div className={'text-lg font-bold text-center'}>확인</div>
         <div className={'py-2'}>{description}</div>
         <div className={'flex flex-col gap-2 justify-center'}>
@@ -49,6 +47,8 @@ const ConfirmModalWrapper = ({
   return (
     <>
       <button
+        type={'button'}
+        aria-label={triggerLabel}
         className={'cursor-pointer'}
         onClick={(e) => {
           e.stopPropagation();

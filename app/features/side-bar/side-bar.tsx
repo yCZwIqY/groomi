@@ -54,8 +54,9 @@ const SideBar = () => {
               <img
                 src={logo}
                 alt={'그루미'}
-                width={100}
-                height={60}
+                width={140}
+                height={47}
+                className='h-auto w-[140px] object-contain'
               />
             </div>
           )}

@@ -1,6 +1,12 @@
 export {};
 
 declare global {
+  interface WorkspaceBackupStatus {
+    workspacePath: string;
+    lastBackupAt: string | null;
+    overdue: boolean;
+  }
+
   type WorkspaceNodeType = 'document' | 'workspace';
 
   type NovelType = 'long' | 'short';
@@ -182,6 +188,7 @@ declare global {
       preloadReady: boolean;
     };
     electronAPI: {
+      getWorkspaceBackupStatus: () => Promise<WorkspaceBackupStatus>;
       backupWorkspace: () => Promise<{ path: string } | null>;
       restoreWorkspaceBackup: () => Promise<WorkspaceInfo | null>;
       recoverDocument: (documentPath: string) => Promise<WorkspaceNode>;

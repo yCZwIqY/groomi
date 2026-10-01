@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { app, BrowserWindow, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,8 +11,8 @@ const RETRY_DELAY_MS = 1000;
 const PRELOAD_PATH = path.resolve(__dirname, '../preload.cjs');
 
 function getWindowIcon() {
-  const iconPath = path.resolve(app.getAppPath(), 'assets/app-logo.png');
-  return nativeImage.createFromPath(iconPath);
+  const filename = process.platform === 'win32' ? 'app-logo.ico' : 'app-logo.png';
+  return path.resolve(app.getAppPath(), 'assets', filename);
 }
 
 function loadRenderer(mainWindow: BrowserWindow) {
@@ -40,6 +40,17 @@ export function createMainWindow() {
       sandbox: true,
     },
   });
+
+  if (process.platform === 'win32') {
+    mainWindow.setAppDetails({
+      appId: 'com.groomi.app',
+      appIconPath: app.isPackaged ? process.execPath : getWindowIcon(),
+      relaunchDisplayName: 'Groomi',
+      relaunchCommand: app.isPackaged
+        ? `"${process.execPath}"`
+        : `"${process.execPath}" "${app.getAppPath()}"`,
+    });
+  }
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();

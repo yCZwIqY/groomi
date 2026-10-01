@@ -3,7 +3,9 @@ import { flushPendingDocument } from '../pending-document';
 
 export async function backupWorkspace() {
   await flushPendingDocument();
-  return requireElectronApi().backupWorkspace();
+  const result = await requireElectronApi().backupWorkspace();
+  if (result) window.dispatchEvent(new Event('workspace-backup-completed'));
+  return result;
 }
 
 export async function restoreWorkspaceBackup() {
@@ -65,4 +67,8 @@ export async function getWorkspaceInfo(path: string) {
 
 export async function updateWorkspaceInfo(path: string, workspaceInfo: WorkspaceUpdatePayload) {
   return requireElectronApi().updateWorkspaceInfo(path, workspaceInfo);
+}
+
+export function getWorkspaceBackupStatus() {
+  return requireElectronApi().getWorkspaceBackupStatus();
 }

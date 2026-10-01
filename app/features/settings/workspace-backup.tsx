@@ -1,3 +1,4 @@
+import useBackupStatus from '~/hooks/use-backup-status';
 import SettingsSection from '~/components/common/settings-section';
 import { useState } from 'react';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -8,6 +9,7 @@ import { useBackgroundTasks } from '~/stores/use-background-tasks';
 
 export default function WorkspaceBackup() {
   const [busy, setBusy] = useState(false);
+  const { status, error } = useBackupStatus();
   const [lastBackup, setLastBackup] = useState('');
   const tasks = useBackgroundTasks((state) => state.tasks);
   const hasRunningTask = Object.values(tasks).some((task) => task.status === 'running');
@@ -60,6 +62,14 @@ export default function WorkspaceBackup() {
       {hasRunningTask && (
         <p className='mt-3 text-sm text-neutral-500'>AI 작업이 끝난 뒤 백업·복원할 수 있습니다.</p>
       )}
+      <p className='mt-3 text-sm text-neutral-500'>
+        {error ||
+          (status
+            ? status.lastBackupAt
+              ? `마지막 백업: ${new Date(status.lastBackupAt).toLocaleString('ko-KR')}`
+              : '아직 백업 기록이 없습니다.'
+            : '백업 기록을 불러오는 중입니다.')}
+      </p>
       {lastBackup && (
         <p className='mt-3 break-all text-sm text-neutral-500'>최근 백업: {lastBackup}</p>
       )}

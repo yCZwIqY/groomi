@@ -18,14 +18,15 @@ HTML, CSS, 작은 복사 스크립트로 만든 정적 페이지입니다. 빌�
 리소스는 상대 경로를 사용해 `/groomi/` 경로와 로컬 미리보기에서 모두 동작합니다.
 
 앱 UI가 바뀌면 기능 설명과 단계별 안내를 함께 검토하세요. 첫 화면과 기능 소개 아래의 이미지 영역은 실제 앱 캡처를 넣을 공간입니다.
-현재는 캡처 준비 중 안내 이미지를 표시합니다.
+집필 화면, 떡밥 관리, 댓글 목록에 실제 앱 캡처를 적용했습니다.
 
 SUIT 폰트 라이선스는 `assets/FONT-LICENSE`에 포함되어 있습니다.
 
 ## 실제 앱 캡처 추가
 
 기능 소개 아래 `#screenshots` 섹션에 3개 이미지 공간이 있습니다.
-현재 `assets/screenshot-placeholder.svg`가 캡처 준비 중 안내를 표시합니다.
+현재 실제 캡처는 `editor-screenshot.png`, `story-screenshot.png`, `comments-screenshot.png`입니다.
+`assets/screenshot-placeholder.svg`는 향후 캡처가 없는 영역에 사용할 안내 이미지입니다.
 
 1. 캡처 파일을 `docs/assets/`에 넣습니다. 예: `editor-screenshot.png`,
    `story-screenshot.png`, `comments-screenshot.png`.

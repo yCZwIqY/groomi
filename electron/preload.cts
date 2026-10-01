@@ -14,6 +14,7 @@ const channels = {
   },
   workspace: {
     backup: 'workspace:backup',
+    backupStatus: 'workspace:backup-status',
     restoreBackup: 'workspace:restore-backup',
     getWorkspaceTree: 'workspace:get-tree',
     getTrashItems: 'workspace:get-trash-items',
@@ -97,6 +98,7 @@ const fileApi = {
 };
 
 const workspaceApi = {
+  getWorkspaceBackupStatus: () => ipcRenderer.invoke(channels.workspace.backupStatus),
   backupWorkspace: () => ipcRenderer.invoke(channels.workspace.backup),
   restoreWorkspaceBackup: () => ipcRenderer.invoke(channels.workspace.restoreBackup),
   getWorkspaceTree: (targetPath?: string) =>

@@ -77,6 +77,10 @@ export function registerWorkspaceIpcHandlers(
     return workspaceInfo;
   });
 
+  secureHandle(channels.workspace.backupStatus, async () =>
+    workspaceService.getWorkspaceBackupStatus(),
+  );
+
   secureHandle(channels.workspace.backup, async () => {
     const destination = await dialog.showOpenDialog({
       title: '백업을 보관할 폴더 선택',

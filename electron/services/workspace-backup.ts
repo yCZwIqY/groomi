@@ -1,3 +1,7 @@
+import {
+  readBackupStatus,
+  recordSuccessfulBackup,
+} from '../repositories/backup-status-repository.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +66,9 @@ function assertOutsideWorkspace(workspace: string, destination: string) {
 
 export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
   return {
+    async getWorkspaceBackupStatus() {
+      return readBackupStatus(await context.getCurrentWorkspacePath());
+    },
     async backupWorkspace(parentPath: string) {
       const workspace = await context.getCurrentWorkspacePath();
       assertOutsideWorkspace(workspace, parentPath);
@@ -74,19 +81,21 @@ export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
       });
       await copyRegularTree(path.join(workspace, 'scripts'), path.join(target, 'scripts'));
       await copyRegularTree(path.join(workspace, 'images'), path.join(target, 'images'));
+      const createdAt = new Date().toISOString();
       // Written last: incomplete backups are never offered as restorable backups.
       await atomicWrite(
         path.join(target, 'groomi-backup.json'),
         JSON.stringify(
           {
             formatVersion: 1,
-            createdAt: new Date().toISOString(),
+            createdAt,
             sourcePath: workspace,
           },
           null,
           2,
         ),
       );
+      await recordSuccessfulBackup(workspace, createdAt);
       return { path: target };
     },
     async restoreWorkspaceBackup(source: string, parentPath: string) {

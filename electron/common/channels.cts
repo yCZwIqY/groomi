@@ -11,6 +11,7 @@ const channels = {
   },
   workspace: {
     backup: 'workspace:backup',
+    backupStatus: 'workspace:backup-status',
     restoreBackup: 'workspace:restore-backup',
     getWorkspaceTree: 'workspace:get-tree',
     getTrashItems: 'workspace:get-trash-items',

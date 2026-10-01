@@ -453,6 +453,36 @@ test('comment personas balance interests and reactions independently of expertis
   assert.ok([...combinations.values()].every((count) => count === 3));
 });
 
+test('excess generated comments are trimmed while missing comments still fail', async (t) => {
+  const { service, node } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const generated = Array.from({ length: 10 }, (_, index) => ({
+    content: `comment-${index + 1}`,
+    tone: '몰입',
+  }));
+  t.mock.method(ollama, 'chat', async () => ({
+    message: { content: JSON.stringify({ comments: [...generated, null] }) },
+  }));
+  const payload = {
+    documentPath: node.path,
+    startAge: 20,
+    endAge: 20,
+    expertise: 0,
+    count: 10,
+  };
+  const comments = await service.generateComments(payload);
+  assert.equal(comments.length, 10);
+  assert.deepEqual(
+    comments.map((comment) => comment.content),
+    generated.map((comment) => comment.content),
+  );
+
+  ollama.chat.mock.mockImplementation(async () => ({
+    message: { content: JSON.stringify({ comments: generated.slice(0, 9) }) },
+  }));
+  await assert.rejects(service.generateComments(payload), /댓글 생성 결과 개수\(9\)/);
+});
+
 test('selected persona chips limit slots, style examples and saved metadata', async (t) => {
   const { service, node } = await fixture(t);
   await service.updateSelectedLLMModel('test-model');
@@ -816,4 +846,43 @@ test('style examples upgrade legacy ages and preserve old reading experience met
     service.addCommentExample({ content: 'invalid', interest: 'invalid' }),
     /관심사/,
   );
+});
+
+test('backup reminder persists per workspace and only advances after successful backup', async (t) => {
+  const { service, workspace, root } = await fixture(t);
+  const { isBackupOverdue, BACKUP_REMINDER_INTERVAL_MS } =
+    await import('../dist-electron/repositories/backup-status-repository.js');
+  assert.equal((await service.getWorkspaceBackupStatus()).lastBackupAt, null);
+  const before = await service.getWorkspaceBackupStatus();
+  assert.equal(before.overdue, true);
+  const backup = await service.backupWorkspace(root);
+  const status = await service.getWorkspaceBackupStatus();
+  assert.equal(status.workspacePath, workspace);
+  assert.equal(status.overdue, false);
+  assert.equal(
+    status.lastBackupAt,
+    JSON.parse(await fs.readFile(path.join(backup.path, 'groomi-backup.json'), 'utf8')).createdAt,
+  );
+  assert.equal(
+    isBackupOverdue(
+      status.lastBackupAt,
+      Date.parse(status.lastBackupAt) + BACKUP_REMINDER_INTERVAL_MS - 1,
+    ),
+    false,
+  );
+  assert.equal(
+    isBackupOverdue(
+      status.lastBackupAt,
+      Date.parse(status.lastBackupAt) + BACKUP_REMINDER_INTERVAL_MS,
+    ),
+    true,
+  );
+  await assert.rejects(service.backupWorkspace(path.join(root, 'missing-parent')));
+  assert.deepEqual(await service.getWorkspaceBackupStatus(), status);
+  const reloaded = createWorkspaceService({ getPath: () => path.join(root, 'app') });
+  await reloaded.setCurrentWorkspacePath(workspace);
+  assert.equal((await reloaded.getWorkspaceBackupStatus()).lastBackupAt, status.lastBackupAt);
+  const other = path.join(root, 'another-workspace');
+  await service.setCurrentWorkspacePath(other);
+  assert.equal((await service.getWorkspaceBackupStatus()).lastBackupAt, null);
 });

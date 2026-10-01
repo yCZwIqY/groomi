@@ -515,7 +515,7 @@ ${styleExampleText}
       throw new Error(`댓글 생성 결과에 comments 배열이 없습니다: ${content}`);
     }
 
-    if (parsed.comments.length !== personaSlots.length) {
+    if (parsed.comments.length < personaSlots.length) {
       throw new Error(
         `댓글 생성 결과 개수(${parsed.comments.length})가 요청한 개수(${personaSlots.length})와 다릅니다.`,
       );
@@ -523,7 +523,7 @@ ${styleExampleText}
 
     // ageGroup/expertiseLevel/expertiseLabel은 모델이 실수로 바꿔도 미리 정해둔 분포가 깨지지 않도록 서버에서 강제로 덮어쓴다.
     const allowedReactions = new Set<string>(personaSlots.map((slot) => slot.reaction));
-    const comments = parsed.comments.map((comment, index) => {
+    const comments = parsed.comments.slice(0, personaSlots.length).map((comment, index) => {
       const persona = personaSlots[index];
       if (!persona || !comment || typeof comment.content !== 'string' || !comment.content.trim()) {
         throw new Error(

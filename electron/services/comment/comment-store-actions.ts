@@ -1,3 +1,4 @@
+import { run, withTransaction } from '../../db/connection.js';
 import type { DocumentCommentRow } from '../../repositories/document-comment-repository.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
 
@@ -39,15 +40,28 @@ export function createCommentStoreActions(context: WorkspaceServiceContext) {
     });
   }
 
-  async function removeGeneratedComment(documentPath: string, commentId: string) {
+  async function removeGeneratedComment(documentPath: string, commentId: string | string[]) {
     const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
       throw new Error('댓글을 삭제할 문서를 찾을 수 없습니다.');
     }
 
-    await context.withWorkspaceRepositories(workspacePath, async ({ documentComments }) => {
-      await documentComments.removeComment(commentId);
+    const ids = [...new Set(Array.isArray(commentId) ? commentId : [commentId])];
+    if (ids.length === 0 || ids.some((id) => typeof id !== 'string' || !id.trim())) {
+      throw new Error('삭제할 댓글을 선택해주세요.');
+    }
+    await context.withWorkspaceRepositories(workspacePath, async ({ db }) => {
+      await withTransaction(db, async () => {
+        for (let offset = 0; offset < ids.length; offset += 500) {
+          const batch = ids.slice(offset, offset + 500);
+          await run(
+            db,
+            `DELETE FROM document_comments WHERE documentId = ? AND id IN (${batch.map(() => '?').join(',')})`,
+            [node.id, ...batch],
+          );
+        }
+      });
     });
 
     return { removed: true, id: commentId };

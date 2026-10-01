@@ -1,11 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { LEGACY_DATABASE_NAME } from '../common/paths.js';
 
-const DEFAULT_IGNORE_FILES = [
-  'echo-draft.sqlite',
-  'scripts',
-  'images',
-];
+const DEFAULT_IGNORE_FILES = ['groomi.sqlite', LEGACY_DATABASE_NAME, 'scripts', 'images'];
 
 export type DirectoryTreeNode = {
   name: string;

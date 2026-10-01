@@ -1,3 +1,6 @@
+import { buildAiChapterText } from '../ai-text.js';
+import { logGenerationMetrics } from '../ai-generation-metrics.js';
+import { getGroupMemory } from '../story-memory/group-memory.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import ollama from 'ollama';
 import { readDocumentContent } from '../workspace/store.js';
@@ -187,14 +190,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         const content = await readDocumentContent(workspacePath, node.id);
 
         // 댓글의 직접 대상이 되는 현재 스크립트.
-        const targetScript = [
-          content.title,
-          content.subTitle,
-          content.draft?.content,
-          content.manuscript?.content,
-        ]
-          .filter(Boolean)
-          .join('\n\n');
+        const targetScript = buildAiChapterText(content);
 
         // 단편(독립 회차) 그룹은 화차 간 맥락을 공유하지 않는다.
         const isStandaloneGroup = getNovelType(store, node.parentId ?? null) === 'short';
@@ -216,20 +212,21 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
           ? await readDocumentContent(workspacePath, previousChapter.id)
           : null;
         const previousChapterScript = previousChapterContent
-          ? [
-              previousChapterContent.title,
-              previousChapterContent.subTitle,
-              previousChapterContent.draft?.content,
-              previousChapterContent.manuscript?.content,
-            ]
-              .filter(Boolean)
-              .join('\n\n')
+          ? buildAiChapterText(previousChapterContent)
           : '';
         const majorEvents = previousChapterContent?.storyMemory?.events ?? [];
-        const characters = previousChapterContent?.storyMemory?.characters ?? [];
-        const plotHooks = (previousChapterContent?.storyMemory?.plotHooks ?? []).filter(
-          (hook) => hook.status !== 'resolved',
+        const groupMemory = await getGroupMemory(
+          workspacePath,
+          store,
+          node.parentId ?? null,
+          node.id,
         );
+        const characters = isStandaloneGroup
+          ? (content.storyMemory?.characters ?? [])
+          : groupMemory.characters;
+        const plotHooks = (
+          isStandaloneGroup ? (content.storyMemory?.plotHooks ?? []) : groupMemory.plotHooks
+        ).filter((hook) => hook.status !== 'resolved');
 
         const savedStyleExamples = await context.withWorkspaceRepositories(
           workspacePath,
@@ -288,6 +285,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         };
       });
 
+    const startedAt = performance.now();
     const response = await ollama.chat({
       model,
       messages: [
@@ -302,6 +300,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       ],
       format: 'json',
     });
+    logGenerationMetrics('comments', model, startedAt, systemPrompt + userPrompt, response);
 
     const parsed = parseGeneratedComments(response.message.content, personaSlots);
 

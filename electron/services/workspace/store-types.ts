@@ -16,6 +16,10 @@ export type StoryMemoryEvent = {
 };
 
 export type StoryMemoryCharacter = {
+  id?: string;
+  introducedAt?: string;
+  introducedAtTitle?: string;
+  recordedAt?: string;
   name: string;
   info: string;
   keywords: string[];
@@ -23,6 +27,10 @@ export type StoryMemoryCharacter = {
 };
 
 export type StoryMemoryPlotHook = {
+  id?: string;
+  plantedChapterId?: string;
+  resolvedAt?: string;
+  resolvedAtTitle?: string;
   description: string;
   plantedAt: string;
   status?: 'unresolved' | 'resolved';

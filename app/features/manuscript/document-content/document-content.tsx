@@ -106,13 +106,19 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
         finishTask(taskId, 'done', draft);
         showToast(`${documentTitle} 정보 생성이 완료됐습니다.`, 'success');
       })
-      .catch(() => {
-        finishTask(taskId, 'error');
+      .catch((error) => {
+        finishTask(
+          taskId,
+          'error',
+          undefined,
+          error instanceof Error ? error.message : '회차 정보 생성에 실패했습니다.',
+        );
         showToast(`${documentTitle} 정보 생성에 실패했습니다.`, 'danger');
       });
   };
 
   const handleOpenStoryMemory = () => {
+    if (isBusy) return;
     openedGeneratedDraft.current = pendingStoryMemoryDraft ?? null;
     if (pendingStoryMemoryDraft) {
       setStoryMemoryDraft({ ...pendingStoryMemoryDraft });
@@ -139,7 +145,11 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
               setValue={setShowType}
             />
           </div>
-          <StoryMemoryActionButton onClick={handleOpenStoryMemory}>
+          <StoryMemoryActionButton
+            onClick={handleOpenStoryMemory}
+            disabled={isBusy}
+            title={isBusy ? '이 회차의 생성 작업이 끝난 뒤 확인할 수 있습니다.' : undefined}
+          >
             사건·인물·떡밥 보기
           </StoryMemoryActionButton>
         </div>

@@ -180,7 +180,7 @@ const commentApi = {
   removeCommentExample: (id: string) => ipcRenderer.invoke(channels.comment.removeExample, id),
   listGeneratedComments: (documentPath: string) =>
     ipcRenderer.invoke(channels.comment.listGenerated, documentPath),
-  removeGeneratedComment: (documentPath: string, commentId: string) =>
+  removeGeneratedComment: (documentPath: string, commentId: string | string[]) =>
     ipcRenderer.invoke(channels.comment.removeGenerated, documentPath, commentId),
 };
 

@@ -1,7 +1,8 @@
-export const WORKSPACE_SCHEMA_VERSION = 3;
+export const WORKSPACE_SCHEMA_VERSION = 4;
 
 export const WORKSPACE_SCHEMA_STATEMENTS = [
   'PRAGMA foreign_keys = ON',
+  `CREATE TABLE IF NOT EXISTS group_memory_revisions (groupId TEXT NOT NULL, chapterId TEXT NOT NULL PRIMARY KEY, payload TEXT NOT NULL, FOREIGN KEY(chapterId) REFERENCES workspace_nodes(id) ON DELETE CASCADE)`,
   `CREATE TABLE IF NOT EXISTS document_file_commits (documentId TEXT PRIMARY KEY, token TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS pending_document_deletions (documentId TEXT PRIMARY KEY)`,
   `

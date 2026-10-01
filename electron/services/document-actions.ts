@@ -1,3 +1,4 @@
+import { getGroupMemory } from './story-memory/group-memory.js';
 import path from 'node:path';
 import { createDocumentInfoRepository } from '../repositories/document-info-repository.js';
 import { createWorkspaceNodeRepository } from '../repositories/workspace-node-repository.js';
@@ -98,13 +99,14 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
   }
 
   async function getDocument(documentPath: string) {
-    const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
+    const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
       throw new Error('문서를 찾을 수 없습니다.');
     }
 
     const content = await readDocumentContent(workspacePath, node.id);
+    const groupMemory = await getGroupMemory(workspacePath, store, node.parentId ?? null, node.id);
     const document = {
       ...node,
       document: {
@@ -113,7 +115,10 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
         subTitle: content.subTitle ?? node.document?.subTitle,
         draft: content.draft,
         manuscript: content.manuscript,
-        storyMemory: content.storyMemory,
+        storyMemory:
+          content.storyMemory || groupMemory.characters.length || groupMemory.plotHooks.length
+            ? { synopsis: '', events: [], generatedAt: '', ...content.storyMemory, ...groupMemory }
+            : undefined,
         draftLength: content.draft?.content?.length ?? node.document?.draftLength ?? 0,
         manuscriptLength:
           content.manuscript?.content?.length ?? node.document?.manuscriptLength ?? 0,

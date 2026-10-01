@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sqlite3 from 'sqlite3';
 import { all, run, withDatabase, withTransaction } from '../db/connection.js';
-import { getWorkspaceDatabaseFilePath } from '../common/paths.js';
+import { getWorkspaceDatabaseFilePath, getReadableWorkspaceDatabasePath } from '../common/paths.js';
 import { atomicWrite } from './atomic-file.js';
 import { readStore } from './workspace/store.js';
 import { buildNodeInfo } from './workspace/nodes.js';
@@ -99,9 +99,12 @@ export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
       if (manifest.formatVersion !== 1 || typeof manifest.sourcePath !== 'string') {
         throw new Error('그루미 백업 폴더가 아닙니다.');
       }
-      await checkDatabase(getWorkspaceDatabaseFilePath(source));
+      await checkDatabase(getReadableWorkspaceDatabasePath(source));
       const target = await fs.mkdtemp(path.join(parentPath, 'groomi-restored-'));
-      await fs.copyFile(getWorkspaceDatabaseFilePath(source), getWorkspaceDatabaseFilePath(target));
+      await fs.copyFile(
+        getReadableWorkspaceDatabasePath(source),
+        getWorkspaceDatabaseFilePath(target),
+      );
       await copyRegularTree(path.join(source, 'scripts'), path.join(target, 'scripts'));
       await copyRegularTree(path.join(source, 'images'), path.join(target, 'images'));
       const store = await readStore(target);

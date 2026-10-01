@@ -19,7 +19,8 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
       <div>
         <StoryMemoryHeading title={'떡밥'} />
         <div className={'mt-1 text-xs leading-5 text-stone-500'}>
-          해결된 항목도 조회·수정할 수 있습니다. 댓글 생성에는 미해결 항목만 참고합니다.
+          그룹의 떡밥을 이 회차 시점으로 관리합니다. 이후 회차의 떡밥과 해결 상태는 참고하지
+          않습니다.
         </div>
       </div>
       <StoryMemoryActionButton
@@ -35,6 +36,9 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
         className={reviewCardClass}
         key={index}
       >
+        {hook.resolvedAtTitle && (
+          <p className={'text-xs text-stone-500'}>해결 회차 · {hook.resolvedAtTitle}</p>
+        )}
         <div className={'flex items-center gap-2'}>
           <span className={'shrink-0 text-xs font-medium text-stone-600'}>등장 회차</span>
           <DnInput

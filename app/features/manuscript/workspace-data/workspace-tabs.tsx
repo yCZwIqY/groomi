@@ -31,9 +31,10 @@ interface Props {
 const WorkspaceTabs = ({ tree, groupPath }: Props) => {
   const [activeTab, setActiveTab] = useState<TabKey>('list');
   const [storyMemory, setStoryMemory] = useState<StoryMemory | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const hasChapters = tree.some((node) => node.type === 'document');
+  const displayedMemory = storyMemory;
 
   useEffect(() => {
     if (!groupPath) {
@@ -43,23 +44,25 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
     }
 
     let isMounted = true;
+    let requestId = 0;
     setLoading(true);
+    setStoryMemory(null);
+    setLoadError(false);
 
     const load = async () => {
-      setLoading(true);
-      setLoadError(false);
+      const currentRequestId = ++requestId;
       try {
         const memory = await getLatestStoryMemory(groupPath);
-        if (isMounted) {
+        if (isMounted && currentRequestId === requestId) {
           setStoryMemory(memory);
+          setLoadError(false);
         }
       } catch {
-        if (isMounted) {
-          setStoryMemory(null);
+        if (isMounted && currentRequestId === requestId) {
           setLoadError(true);
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && currentRequestId === requestId) {
           setLoading(false);
         }
       }
@@ -72,7 +75,7 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
       isMounted = false;
       unsubscribe();
     };
-  }, [groupPath, tree.length]);
+  }, [groupPath]);
 
   const textClass = storyMemoryTextClass;
   const tabDetails = {
@@ -89,17 +92,18 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
     events: {
       title: '주요 사건',
       description: '중요도가 높은 사건부터 확인할 수 있습니다.',
-      count: storyMemory?.events.length ?? 0,
+      count: displayedMemory?.events.length ?? 0,
     },
     characters: {
       title: '등장인물',
-      description: '인물의 정보, 키워드와 이야기 속 행동을 정리합니다.',
-      count: storyMemory?.characters.length ?? 0,
+      description: '그룹의 인물 목록과 마지막 회차까지 알려진 정보·행동 기록입니다.',
+      count: displayedMemory?.characters.length ?? 0,
     },
     plotHooks: {
       title: '떡밥',
-      description: '해결된 떡밥도 보존됩니다. 댓글 생성에는 미해결 항목만 참고합니다.',
-      count: storyMemory?.plotHooks.length ?? 0,
+      description:
+        '그룹의 떡밥을 생성·해결 회차와 함께 관리합니다. 댓글은 해당 회차 시점의 미해결 떡밥만 참고합니다.',
+      count: displayedMemory?.plotHooks.length ?? 0,
     },
   };
   const details = tabDetails[activeTab];
@@ -111,7 +115,7 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
   };
   const isEmpty =
     activeTab !== 'list' &&
-    (activeTab === 'synopsis' ? !storyMemory?.synopsis : details.count === 0);
+    (activeTab === 'synopsis' ? !displayedMemory?.synopsis : details.count === 0);
 
   return (
     <div className={'flex min-w-0 flex-col gap-4'}>
@@ -139,7 +143,11 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
           <StoryMemoryState>
             회차 정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.
           </StoryMemoryState>
-        ) : !storyMemory ? (
+        ) : (!displayedMemory ||
+            ((activeTab === 'synopsis' || activeTab === 'events') &&
+              !displayedMemory.generatedAt)) &&
+          activeTab !== 'characters' &&
+          activeTab !== 'plotHooks' ? (
           <StoryMemoryState>
             {hasChapters
               ? '마지막 회차에 생성된 정보가 없습니다. 마지막 회차에서 회차 정보를 생성하면 이곳에 표시됩니다.'
@@ -151,13 +159,13 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
           <>
             {activeTab === 'synopsis' && (
               <StoryMemoryCard>
-                <p className={textClass}>{storyMemory?.synopsis}</p>
+                <p className={textClass}>{displayedMemory?.synopsis}</p>
               </StoryMemoryCard>
             )}
             {activeTab === 'events' && (
               <ul className={'flex flex-col gap-3'}>
                 {IMPORTANCE_LEVELS.flatMap((importance) =>
-                  (storyMemory?.events ?? [])
+                  (displayedMemory?.events ?? [])
                     .filter((event) => event.importance === importance)
                     .map((event, index) => (
                       <StoryMemoryCard
@@ -179,7 +187,7 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
               </ul>
             )}
             {activeTab === 'characters' &&
-              storyMemory?.characters.map((character, index) => (
+              displayedMemory?.characters.map((character, index) => (
                 <StoryMemoryCard
                   as={'article'}
                   className={'flex flex-col gap-3'}
@@ -203,6 +211,11 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
                     </div>
                   )}
                   {character.info && <p className={textClass}>{character.info}</p>}
+                  {character.introducedAtTitle && (
+                    <p className={'text-xs text-stone-500'}>
+                      최초 등장 · {character.introducedAtTitle}
+                    </p>
+                  )}
                   {character.summary && (
                     <div className={'border-t border-stone-100 pt-3'}>
                       <div className={'mb-1 text-xs font-medium text-stone-500'}>행동 요약</div>
@@ -212,7 +225,7 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
                 </StoryMemoryCard>
               ))}
             {activeTab === 'plotHooks' &&
-              storyMemory?.plotHooks.map((hook, index) => (
+              displayedMemory?.plotHooks.map((hook, index) => (
                 <StoryMemoryCard
                   as={'article'}
                   className={'flex flex-col gap-3'}
@@ -230,6 +243,9 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
                     </StoryMemoryTag>
                   </div>
                   <p className={textClass}>{hook.description}</p>
+                  {hook.resolvedAtTitle && (
+                    <p className={'text-xs text-stone-500'}>해결 회차 · {hook.resolvedAtTitle}</p>
+                  )}
                 </StoryMemoryCard>
               ))}
           </>

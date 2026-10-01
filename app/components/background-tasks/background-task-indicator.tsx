@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { AiOutlineCheckCircle, AiOutlineCloseCircle, AiOutlineLoading3Quarters } from 'react-icons/ai';
+import {
+  AiOutlineCheckCircle,
+  AiOutlineCloseCircle,
+  AiOutlineLoading3Quarters,
+} from 'react-icons/ai';
 import { useBackgroundTasks } from '~/stores/use-background-tasks';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -27,6 +31,7 @@ const BackgroundTaskIndicator = () => {
   }
 
   const runningCount = tasks.filter((task) => task.status === 'running').length;
+  const errorCount = tasks.filter((task) => task.status === 'error').length;
 
   return (
     <div className={'fixed right-4 top-4 z-40 flex flex-col items-end'}>
@@ -35,16 +40,26 @@ const BackgroundTaskIndicator = () => {
           'flex items-center gap-2 rounded-full border border-stone-200 bg-white/95 px-4 py-2 shadow-[0_10px_30px_rgba(15,23,42,0.12)] transition-all hover:-translate-y-0.5'
         }
         onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
         type={'button'}
       >
         {runningCount > 0 ? (
-          <AiOutlineLoading3Quarters className={'animate-[spin_1.4s_linear_infinite] text-primary-500'} />
+          <AiOutlineLoading3Quarters
+            className={'animate-[spin_1.4s_linear_infinite] text-primary-500'}
+          />
+        ) : errorCount > 0 ? (
+          <AiOutlineCloseCircle className={'text-red-600'} />
         ) : (
           <AiOutlineCheckCircle className={'text-primary-500'} />
         )}
         <span className={'typo-b6-b text-stone-700'}>
           {runningCount > 0 ? `백그라운드 작업 ${runningCount}건 진행 중` : '백그라운드 작업'}
         </span>
+        {errorCount > 0 && (
+          <span className={'rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600'}>
+            실패 {errorCount}건
+          </span>
+        )}
       </button>
 
       {open && (
@@ -60,7 +75,7 @@ const BackgroundTaskIndicator = () => {
               onClick={() => clearFinishedTasks()}
               type={'button'}
             >
-              완료 항목 지우기
+              종료 항목 지우기
             </button>
           </div>
 
@@ -86,8 +101,19 @@ const BackgroundTaskIndicator = () => {
                   <div className={'typo-b6-r text-stone-400'}>
                     {TYPE_LABEL[task.type] ?? task.type}
                     {' · '}
-                    {task.status === 'running' ? '진행 중' : formatElapsed(task.finishedAt ?? task.startedAt)}
+                    {task.status === 'running'
+                      ? '진행 중'
+                      : formatElapsed(task.finishedAt ?? task.startedAt)}
                   </div>
+                  {task.status === 'error' && (
+                    <p
+                      className={
+                        'mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-red-600'
+                      }
+                    >
+                      {task.errorMessage || '알 수 없는 오류가 발생했습니다.'}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

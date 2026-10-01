@@ -1,11 +1,16 @@
+import { buildAiChapterText } from '../ai-text.js';
+import { mergeMemoryChanges } from './merge-memory-changes.js';
+import { logGenerationMetrics } from '../ai-generation-metrics.js';
+import { getGroupMemory } from './group-memory.js';
+import { updateDocumentContentWithMetadata } from '../workspace/script-files.js';
+import { run } from '../../db/connection.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import ollama from 'ollama';
 
-import { ensureStore, readDocumentContent, writeDocumentContent } from '../workspace/store.js';
+import { ensureStore, readDocumentContent } from '../workspace/store.js';
 import { normalizePath, now } from '../workspace/shared.js';
 import type {
   NovelType,
-  StoredDocumentContent,
   StoryMemory,
   StoryMemoryCharacter,
   StoryMemoryEvent,
@@ -40,17 +45,6 @@ export function getNovelType(store: WorkspaceStore, parentId: string | null): No
   return group?.novelType ?? 'long';
 }
 
-function buildChapterText(content: StoredDocumentContent, fallbackTitle: string) {
-  return [
-    content.title ?? fallbackTitle,
-    content.subTitle,
-    content.draft?.content,
-    content.manuscript?.content,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-}
-
 export function createStoryMemoryActions(context: WorkspaceServiceContext) {
   async function generateStoryMemory(documentPath: string): Promise<StoryMemoryDraft> {
     const {
@@ -58,7 +52,8 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       documentId,
       model,
       standalone,
-      previousPlotHooks,
+      existingRevision,
+      knownMemory,
       systemPrompt,
       userPrompt,
     } = await serializeWorkspaceOperation(async () => {
@@ -81,18 +76,31 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       const standalone = novelType === 'short';
 
       const currentContent = await readDocumentContent(workspacePath, node.id);
-      const currentText = buildChapterText(currentContent, node.name);
+      const currentText = buildAiChapterText(currentContent, node.name);
 
       let previousMemory: StoryMemory | null = null;
 
       if (!standalone) {
         const chapters = sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
-        const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
-        const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-
-        previousMemory = previousChapter
-          ? ((await readDocumentContent(workspacePath, previousChapter.id)).storyMemory ?? null)
+        const previous = chapters[chapters.findIndex((chapter) => chapter.id === node.id) - 1];
+        previousMemory = previous
+          ? ((await readDocumentContent(workspacePath, previous.id)).storyMemory ?? null)
           : null;
+      }
+      const knownMemory = await getGroupMemory(
+        workspacePath,
+        store,
+        node.parentId ?? null,
+        node.id,
+      );
+      if (!standalone) {
+        previousMemory = {
+          synopsis: '',
+          events: [],
+          generatedAt: '',
+          ...previousMemory,
+          ...knownMemory,
+        };
       }
 
       const { systemPrompt, userPrompt } = buildStoryMemoryPrompt({
@@ -107,12 +115,17 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
         documentId: node.id,
         model: setting.selectedLLMModel,
         standalone,
-        previousPlotHooks: previousMemory?.plotHooks ?? [],
+        existingRevision: {
+          characters: currentContent.storyMemory?.characters ?? [],
+          plotHooks: currentContent.storyMemory?.plotHooks ?? [],
+        },
+        knownMemory,
         systemPrompt,
         userPrompt,
       };
     });
 
+    const startedAt = performance.now();
     const response = await ollama.chat({
       model,
       messages: [
@@ -122,61 +135,83 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       format: 'json',
     });
 
-    const draft = parseStoryMemoryDraft(response.message.content);
-    // Keep history even when the model omits an existing hook from its response.
-    for (const previousHook of previousPlotHooks) {
-      const generatedHook = draft.plotHooks.find(
-        (hook) =>
-          hook.plantedAt === previousHook.plantedAt &&
-          hook.description === previousHook.description,
-      );
-      if (!generatedHook) {
-        draft.plotHooks.push(previousHook);
-      } else if (previousHook.status === 'resolved') {
-        generatedHook.status = 'resolved';
-      }
-    }
+    logGenerationMetrics('story-memory', model, startedAt, systemPrompt + userPrompt, response);
+    const changes = parseStoryMemoryDraft(response.message.content);
+    const draft = { ...changes, ...mergeMemoryChanges(existingRevision, knownMemory, changes) };
 
     if (standalone) {
       draft.synopsis = '';
     }
 
-    await serializeWorkspaceOperation(async () => {
+    const saved = await serializeWorkspaceOperation(async () => {
       const store = await ensureStore(workspacePath);
       const currentNode = context.getUpdatedNodeById(workspacePath, store, documentId);
       if (!currentNode || currentNode.deletedAt) {
         throw new Error('회차 정보를 저장할 문서를 찾을 수 없습니다.');
       }
-      await saveStoryMemory(currentNode.path, draft);
+      return saveStoryMemory(currentNode.path, draft);
     });
-    return draft;
+    return saved;
   }
 
   async function saveStoryMemory(
     documentPath: string,
     draft: StoryMemoryDraft,
   ): Promise<StoryMemory> {
-    const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
+    const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
       throw new Error('회차 정보를 저장할 문서를 찾을 수 없습니다.');
     }
 
     const currentContent = await readDocumentContent(workspacePath, node.id);
+    const groupMemory = await getGroupMemory(workspacePath, store, node.parentId ?? null, node.id);
     const storyMemory: StoryMemory = {
       synopsis: draft.synopsis ?? '',
       events: Array.isArray(draft.events) ? draft.events : [],
-      characters: Array.isArray(draft.characters) ? draft.characters : [],
-      plotHooks: Array.isArray(draft.plotHooks) ? draft.plotHooks : [],
+      characters: (Array.isArray(draft.characters) ? draft.characters : []).map((character) => ({
+        ...character,
+        id:
+          character.id ??
+          groupMemory.characters.find((item) => item.name === character.name)?.id ??
+          crypto.randomUUID(),
+      })),
+      plotHooks: (Array.isArray(draft.plotHooks) ? draft.plotHooks : []).map((hook) => ({
+        ...hook,
+        id:
+          hook.id ??
+          groupMemory.plotHooks.find(
+            (item) => item.description === hook.description && item.plantedAt === hook.plantedAt,
+          )?.id ??
+          crypto.randomUUID(),
+      })),
       generatedAt: now(),
     };
 
-    await writeDocumentContent(workspacePath, node.id, {
-      ...currentContent,
-      storyMemory,
-    });
-
-    return storyMemory;
+    await updateDocumentContentWithMetadata(
+      workspacePath,
+      node.id,
+      {
+        ...currentContent,
+        storyMemory,
+      },
+      async (db) => {
+        await run(
+          db,
+          'INSERT INTO group_memory_revisions (groupId, chapterId, payload) VALUES (?, ?, ?) ON CONFLICT(chapterId) DO UPDATE SET groupId = excluded.groupId, payload = excluded.payload',
+          [
+            node.parentId ?? store.workspace.id,
+            node.id,
+            JSON.stringify({
+              characters: storyMemory.characters,
+              plotHooks: storyMemory.plotHooks,
+            }),
+          ],
+        );
+      },
+    );
+    const projected = await getGroupMemory(workspacePath, store, node.parentId ?? null, node.id);
+    return { ...storyMemory, ...projected };
   }
 
   async function getLatestStoryMemory(groupPath: string): Promise<StoryMemory | null> {
@@ -202,7 +237,10 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
     const lastChapter = chapters.at(-1);
     if (!lastChapter) return null;
     const content = await readDocumentContent(workspacePath, lastChapter.id);
-    return content.storyMemory ?? null;
+    const groupMemory = await getGroupMemory(workspacePath, store, parentId, lastChapter.id);
+    if (!content.storyMemory && !groupMemory.characters.length && !groupMemory.plotHooks.length)
+      return null;
+    return { synopsis: '', events: [], generatedAt: '', ...content.storyMemory, ...groupMemory };
   }
 
   return {
@@ -233,7 +271,7 @@ function buildStoryMemoryPrompt({
     ? previousMemory.characters
         .map(
           (character) =>
-            `- ${character.name} (${character.keywords.join(', ') || '키워드 없음'})\n  정보: ${character.info}\n  행동 요약: ${character.summary}`,
+            `- [id:${character.id ?? ''}] ${character.name} (${character.keywords.join(', ') || '키워드 없음'})\n  정보: ${character.info}`,
         )
         .join('\n')
     : '없음';
@@ -241,7 +279,7 @@ function buildStoryMemoryPrompt({
     ? previousMemory.plotHooks
         .map(
           (hook) =>
-            `- [${hook.status === 'resolved' ? 'resolved' : 'unresolved'}] (${hook.plantedAt}) ${hook.description}`,
+            `- [id:${hook.id ?? ''}] [${hook.status === 'resolved' ? 'resolved' : 'unresolved'}] (${hook.plantedAt}) ${hook.description}`,
         )
         .join('\n')
     : '없음';
@@ -268,11 +306,14 @@ function buildStoryMemoryPrompt({
 - 마크다운, 설명, 코드블록, JSON 밖의 텍스트를 절대 포함하지 않는다.
 - synopsis는 이번 화까지의 전체 줄거리를 자연스러운 문단으로 작성한다.
 - events는 이번 화까지 발생한 주요 사건을 중요도와 함께 정리한다. importance는 반드시 "상", "중", "하" 중 하나다.
-- characters는 이전 화까지의 등장인물 목록을 기본으로 그대로 유지한다. 이번 화에 등장하지 않는다는 이유만으로 목록에서 임의로 삭제하지 않는다.
+- characters에는 새 인물과 이번 화에서 정보·관계·행동이 변경된 인물만 반환한다. 변화가 없으면 생략한다. 기존 목록은 앱이 보존한다.
+- 기존 인물과 떡밥의 id는 반드시 그대로 반환한다. 새로운 항목은 id를 생략한다.
 - 이번 화에 새로 등장한 인물은 characters에 추가한다.
-- 기존 인물의 info, keywords, summary 중 이번 화 내용으로 바뀌거나 추가된 부분이 있으면 그 인물의 항목만 갱신한다. 변화가 없는 인물은 이전 내용을 그대로 유지한다.
+- 기존 인물의 info, keywords, summary 중 이번 화 내용으로 바뀌거나 추가된 부분이 있으면 그 인물의 항목만 갱신한다. 변화가 없는 인물은 출력하지 않는다. 기존 인물은 id와 변경된 필드만 반환해도 된다.
 - summary는 스토리 진행에 따른 행동을 5줄 이내로 요약한다.
-- plotHooks는 복선·약속·암시를 모두 보존한다. 해결된 항목은 삭제하지 말고 status를 "resolved"로, 미해결 항목은 "unresolved"로 반환한다. 이전 항목과 해결 상태를 유지하고 새 항목을 추가한다.
+- plotHooks에는 새 떡밥과 이번 화에서 변경·해결된 떡밥만 반환한다. 변경이 없으면 생략한다. 기존 목록은 앱이 보존한다.
+- 기존 떡밥을 해결하면 { "id": "기존 ID", "status": "resolved" }만 반환한다. 이미 해결된 떡밥은 출력하지 않는다.
+- 인물·떡밥 변화가 없으면 characters와 plotHooks는 빈 배열로 반환한다.
 - plotHooks의 plantedAt에는 그 복선이 처음 등장한 화의 제목을 적는다 (이전 화의 plantedAt은 그대로 유지, 새 항목만 이번 화 제목을 사용).
 - 이전 화 정보와 이번 화 내용이 모순되면 이번 화 내용을 우선한다.
 - 죽었거나 퇴장한 인물은 summary에 그 사실을 반드시 반영한다.
@@ -288,10 +329,10 @@ ${previousSynopsis}
 이전 화까지의 주요 사건:
 ${previousEvents}
 
-이전 화까지의 등장인물 정리:
+이 회차까지 등록된 등장인물 (변경된 항목만 출력):
 ${previousCharacters}
 
-이전 화까지의 떡밥(해결 상태 포함):
+이 회차까지 등록된 떡밥 (새 항목·해결 등 변경만 출력):
 ${previousPlotHooks}
 
 `
@@ -330,7 +371,18 @@ function parseStoryMemoryDraft(content: string): StoryMemoryDraft {
   try {
     parsed = JSON.parse(content) as Partial<StoryMemoryDraft>;
   } catch {
-    throw new Error(`회차 정보를 JSON으로 해석하지 못했습니다: ${content}`);
+    throw new Error('회차 정보를 JSON으로 해석하지 못했습니다. 다시 생성해주세요.');
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !Array.isArray(parsed.characters) ||
+    !Array.isArray(parsed.plotHooks) ||
+    !Array.isArray(parsed.events)
+  ) {
+    throw new Error('생성된 회차 정보 형식이 올바르지 않습니다. 다시 생성해주세요.');
   }
 
   return {

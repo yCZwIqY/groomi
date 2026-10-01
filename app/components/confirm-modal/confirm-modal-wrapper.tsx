@@ -10,6 +10,7 @@ interface Props {
   confirmVariant?: Variants | 'red' | 'red-outline';
   confirmLabel?: ReactNode;
   triggerLabel?: string;
+  disabled?: boolean;
 }
 const ConfirmModalWrapper = ({
   children,
@@ -18,6 +19,7 @@ const ConfirmModalWrapper = ({
   confirmVariant = 'primary',
   confirmLabel,
   triggerLabel,
+  disabled = false,
 }: Props) => {
   const { portal, isOpen, setIsOpen } = useModal({
     content: (
@@ -49,7 +51,8 @@ const ConfirmModalWrapper = ({
       <button
         type={'button'}
         aria-label={triggerLabel}
-        className={'cursor-pointer'}
+        disabled={disabled}
+        className={'cursor-pointer disabled:cursor-not-allowed disabled:opacity-40'}
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen(true);

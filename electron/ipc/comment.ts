@@ -28,7 +28,9 @@ export function registerCommentIpcHandlers(
   secureHandle(channels.comment.removeGenerated, async (_, documentPath, commentId) => {
     return workspaceService.removeGeneratedComment(
       requireString(documentPath, 'documentPath'),
-      requireString(commentId, 'commentId'),
+      Array.isArray(commentId)
+        ? commentId.map((id) => requireString(id, 'commentId'))
+        : requireString(commentId, 'commentId'),
     );
   });
 }

@@ -1,6 +1,6 @@
 import type { App } from 'electron';
 
-import { getDefaultWorkspacePath } from '../common/paths.js';
+import { getDefaultWorkspacePath, getLegacyDefaultWorkspacePath } from '../common/paths.js';
 import { createCurrentWorkspaceRepository } from '../repositories/current-workspace-repository.js';
 import { pathExists } from './file-system.js';
 import { normalizePath } from './workspace/shared.js';
@@ -10,7 +10,12 @@ export function createWorkspaceSettings(app: Pick<App, 'getPath'>) {
   const currentWorkspaceRepository = createCurrentWorkspaceRepository(app);
 
   async function getCurrentWorkspacePath() {
-    return (await currentWorkspaceRepository.getCurrentWorkspacePath()) ?? getDefaultWorkspacePath();
+    const saved = await currentWorkspaceRepository.getCurrentWorkspacePath();
+    if (saved) return saved;
+    const current = getDefaultWorkspacePath();
+    if (await pathExists(current)) return current;
+    const legacy = getLegacyDefaultWorkspacePath();
+    return (await pathExists(legacy)) ? legacy : current;
   }
 
   async function getWorkspaceInfo(workspacePath: string) {

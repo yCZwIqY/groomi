@@ -1,7 +1,12 @@
 import path from 'node:path';
 
 import { getWorkspaceDatabaseFilePath } from '../../common/paths.js';
-import { initializeSchema, withDatabase, withTransaction } from '../../db/connection.js';
+import {
+  initializeSchema,
+  withDatabase,
+  withTransaction,
+  migrateWorkspaceDatabase,
+} from '../../db/connection.js';
 import { createDocumentInfoRepository } from '../../repositories/document-info-repository.js';
 import { createGroupInfoRepository } from '../../repositories/group-info-repository.js';
 import { createRecentVisitRepository } from '../../repositories/recent-visit-repository.js';
@@ -70,7 +75,7 @@ export async function readStore(workspacePath: string): Promise<WorkspaceStore |
     }
 
     return {
-      version: 3,
+      version: 4,
       workspace: {
         id: rootRow.id,
         name: rootRow.name,
@@ -119,7 +124,7 @@ export async function readStore(workspacePath: string): Promise<WorkspaceStore |
             updatedAt: row.updatedAt,
             deletedAt: row.deletedAt,
           };
-      }),
+        }),
       recentVisits: recentVisitRows.map((row) => parseRecentVisit(row.payload)),
       settingInfo,
     };
@@ -133,7 +138,7 @@ export async function writeStore(
   const normalizedWorkspacePath = normalizePath(workspacePath);
   const nextStore: WorkspaceStore = {
     ...store,
-    version: 3,
+    version: 4,
     workspace: {
       ...store.workspace,
       updatedAt: now(),
@@ -141,6 +146,8 @@ export async function writeStore(
   };
 
   await ensureDirectory(normalizedWorkspacePath);
+
+  await migrateWorkspaceDatabase(normalizedWorkspacePath);
   await ensureScriptsDirectory(normalizedWorkspacePath);
 
   await withDatabase(normalizedWorkspacePath, async (db) => {
@@ -196,6 +203,7 @@ export async function ensureStore(workspacePath: string): Promise<WorkspaceStore
   const databaseFilePath = getWorkspaceDatabaseFilePath(normalizedWorkspacePath);
 
   await ensureDirectory(normalizedWorkspacePath);
+  await migrateWorkspaceDatabase(normalizedWorkspacePath);
 
   if (await pathExists(databaseFilePath)) {
     const store = await readStore(normalizedWorkspacePath);

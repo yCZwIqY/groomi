@@ -20,6 +20,6 @@ export async function listGeneratedComments(documentPath: string) {
   return requireElectronApi().listGeneratedComments(documentPath);
 }
 
-export async function removeGeneratedComment(documentPath: string, commentId: string) {
+export async function removeGeneratedComment(documentPath: string, commentId: string | string[]) {
   return requireElectronApi().removeGeneratedComment(documentPath, commentId);
 }

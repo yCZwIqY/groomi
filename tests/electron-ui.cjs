@@ -80,10 +80,23 @@ app
         manuscript: seededText('<p>기존에 저장된 원고</p>'),
       },
     });
+    const { withDatabase } = await load('db/connection.js');
+    const { createDocumentCommentRepository } = await load(
+      'repositories/document-comment-repository.js',
+    );
+    await withDatabase(workspace, (db) =>
+      createDocumentCommentRepository(db).insertComments(first.id, [
+        { content: '선택 삭제 댓글' },
+        { content: '유지할 댓글' },
+        { content: '전체 삭제 댓글' },
+      ]),
+    );
     const { registerIpcHandlers } = await load('ipc/index.js');
     registerIpcHandlers(app);
     const { ipcMain } = require('electron');
     const { secureHandle } = await load('ipc/ipc-guards.js');
+    ipcMain.removeHandler('ollama:is-running');
+    secureHandle('ollama:is-running', async () => true);
     let completedUpdates = 0;
     ipcMain.removeHandler('document:update');
     secureHandle('document:update', async (_event, documentPath, payload) => {
@@ -130,6 +143,78 @@ app
       'saved draft and manuscript hydration',
     );
 
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelectorAll('input[aria-label^="댓글 선택:"]').length === 3`,
+        ),
+      'comment selection loaded',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('input[aria-label^="댓글 선택:"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`document.body.textContent.includes('1개 선택됨')`),
+      'comment selected',
+    );
+    await click('선택 삭제');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('선택한 댓글 1개를')`,
+        ),
+      'selected deletion confirmation',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('.modal-overlay--open button')].find((button) => button.textContent.trim() === '삭제')).click()`,
+    );
+    await until(
+      async () => (await service.listGeneratedComments(first.path)).length === 2,
+      'selected comments deleted',
+    );
+    await click('전체 삭제');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('댓글 2개를 모두')`,
+        ),
+      'all deletion confirmation',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('.modal-overlay--open button')].find((button) => button.textContent.trim() === '삭제')).click()`,
+    );
+    await until(
+      async () => (await service.listGeneratedComments(first.path)).length === 0,
+      'all comments deleted',
+    );
+    console.log('PASS: checkbox selection and confirmed batch comment deletion');
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', async () => {
+      throw new Error('테스트 생성 실패 사유');
+    });
+    await click('댓글 생성');
+    await until(
+      () => window.webContents.executeJavaScript(`document.body.textContent.includes('실패 1건')`),
+      'failed background task badge',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('테스트 생성 실패 사유')`,
+        ),
+      'background failure reason retained',
+    );
+    console.log('PASS: background failure reason is retained in task history');
+    ipcMain.removeHandler('ollama:is-running');
+    secureHandle('ollama:is-running', async () => false);
+    await service.updateSelectedLLMModel(null);
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
     await edit('이동 직전 입력');
     await click('두 번째 회차');
     await until(
@@ -180,15 +265,20 @@ app
       const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
       section.querySelector('button[aria-expanded]').click();
     })()`);
-    assert.ok(await window.webContents.executeJavaScript(`(() => {
+    assert.ok(
+      await window.webContents.executeJavaScript(`(() => {
       const toggle = document.querySelector('button[aria-controls][aria-expanded="false"]');
       return toggle && document.getElementById(toggle.getAttribute('aria-controls')).hidden;
-    })()`));
+    })()`),
+    );
     await window.webContents.executeJavaScript(`(() => {
       const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));
       section.querySelector('button[aria-expanded]').click();
     })()`);
-    assert.equal(await window.webContents.executeJavaScript(`document.querySelector('textarea').value`), '설정에서 저장한 문장 질문 예시');
+    assert.equal(
+      await window.webContents.executeJavaScript(`document.querySelector('textarea').value`),
+      '설정에서 저장한 문장 질문 예시',
+    );
     await click('예시 저장');
     await until(
       async () =>

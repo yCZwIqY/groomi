@@ -41,6 +41,10 @@ declare global {
   };
 
   type StoryMemoryCharacter = {
+    id?: string;
+    introducedAt?: string;
+    introducedAtTitle?: string;
+    recordedAt?: string;
     name: string;
     info: string;
     keywords: string[];
@@ -48,6 +52,10 @@ declare global {
   };
 
   type StoryMemoryPlotHook = {
+    id?: string;
+    plantedChapterId?: string;
+    resolvedAt?: string;
+    resolvedAtTitle?: string;
     description: string;
     plantedAt: string;
     status?: 'unresolved' | 'resolved';
@@ -235,8 +243,8 @@ declare global {
       listGeneratedComments: (documentPath: string) => Promise<GeneratedComment[]>;
       removeGeneratedComment: (
         documentPath: string,
-        commentId: string,
-      ) => Promise<{ removed: boolean; id: string }>;
+        commentId: string | string[],
+      ) => Promise<{ removed: boolean; id: string | string[] }>;
     };
   }
 }

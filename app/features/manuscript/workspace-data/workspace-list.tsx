@@ -27,7 +27,9 @@ const WorkspaceList = ({ tree }: Props) => {
 
   return (
     <section
-      className={'max-h-[420px] w-full overflow-auto rounded-xl border border-stone-200 bg-white'}
+      className={
+        'relative isolate max-h-[420px] w-full overflow-auto rounded-xl border border-stone-200 bg-white'
+      }
     >
       <table className={'w-full min-w-[760px]'}>
         <colgroup>

@@ -17,6 +17,7 @@ const WorkspaceData = () => {
   const setSelectedWorkspace = useSelectedWorkspace((state) => state.setSelectedWorkspace);
   const [workspaceData, setWorkspaceData] = useState<WorkspaceNode | null>(null);
   const [tree, setTree] = useState<WorkspaceNode[]>([]);
+  const [loadedTreePath, setLoadedTreePath] = useState<string | null>(null);
 
   const loadWorkspaceTree = async (targetPath?: string) => {
     if (!targetPath) {
@@ -50,6 +51,7 @@ const WorkspaceData = () => {
 
       if (isMounted) {
         setTree(nextTree?.[0]?.children ?? []);
+        setLoadedTreePath(selectedWorkspace.path);
       }
     };
 
@@ -87,10 +89,13 @@ const WorkspaceData = () => {
         </AddWorkspaceButton>
       </div>
       {workspaceData?.workspace?.novelType === 'long' ? (
-        <WorkspaceTabs
-          groupPath={workspaceData.path}
-          tree={tree}
-        />
+        loadedTreePath === workspaceData.path && selectedWorkspace?.path === workspaceData.path ? (
+          <WorkspaceTabs
+            key={workspaceData.path}
+            groupPath={workspaceData.path}
+            tree={tree}
+          />
+        ) : null
       ) : (
         <WorkspaceList tree={tree} />
       )}

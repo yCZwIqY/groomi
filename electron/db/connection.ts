@@ -1,9 +1,49 @@
 import sqlite3 from 'sqlite3';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-import { getWorkspaceDatabaseFilePath } from '../common/paths.js';
+import { getWorkspaceDatabaseFilePath, LEGACY_DATABASE_NAME } from '../common/paths.js';
 import { WORKSPACE_SCHEMA_STATEMENTS, WORKSPACE_SCHEMA_VERSION } from './schema.js';
 
 const sqlite = sqlite3.verbose();
+const migrations = new Map<string, Promise<void>>();
+
+export async function migrateWorkspaceDatabase(workspacePath: string) {
+  const target = getWorkspaceDatabaseFilePath(workspacePath);
+  const existing = migrations.get(target);
+  if (existing) return existing;
+  const operation = (async () => {
+    try {
+      await fs.access(target);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const legacy = path.join(workspacePath, LEGACY_DATABASE_NAME);
+    try {
+      await fs.access(legacy);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    const temporary = `${target}.migrating-${crypto.randomUUID()}`;
+    const db = new sqlite.Database(legacy, sqlite3.OPEN_READONLY);
+    try {
+      // SQLite produces a consistent snapshot including committed WAL contents.
+      await run(db, 'VACUUM INTO ?', [temporary]);
+      await fs.link(temporary, target);
+    } finally {
+      await close(db);
+      await fs.unlink(temporary).catch(() => {});
+    }
+  })();
+  migrations.set(target, operation);
+  try {
+    await operation;
+  } finally {
+    migrations.delete(target);
+  }
+}
 
 export type SqliteParameter = string | number | null;
 
@@ -62,6 +102,7 @@ export async function withDatabase<Result>(
   workspacePath: string,
   callback: (db: sqlite3.Database) => Promise<Result>,
 ) {
+  await migrateWorkspaceDatabase(workspacePath);
   const db = openDatabase(workspacePath);
 
   try {

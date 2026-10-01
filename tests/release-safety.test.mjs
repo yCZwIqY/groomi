@@ -14,6 +14,13 @@ import { all, run, withDatabase } from '../dist-electron/db/connection.js';
 import { nextDeletionTime } from '../dist-electron/services/workspace/shared.js';
 import { createDocumentCommentRepository } from '../dist-electron/repositories/document-comment-repository.js';
 import ollama from 'ollama';
+import { mergeMemoryChanges } from '../dist-electron/services/story-memory/merge-memory-changes.js';
+import {
+  getDefaultWorkspacePath,
+  getWorkspaceDatabaseFilePath,
+  LEGACY_DATABASE_NAME,
+} from '../dist-electron/common/paths.js';
+import { buildAiChapterText, toAiText } from '../dist-electron/services/ai-text.js';
 
 const text = (content) => ({
   content,
@@ -21,6 +28,247 @@ const text = (content) => ({
   charsWithoutSpaces: content.replace(/\s/g, '').length,
   createdAt: '2026-09-30',
   updatedAt: '2026-09-30',
+});
+
+test('AI input removes editor formatting while preserving prose and deduplicating scripts', () => {
+  assert.equal(
+    toAiText('<p style="text-align:left">문 &amp; 열쇠</p><p>&lt;비밀&gt; &#xD55C;&#44368;</p>'),
+    '문 & 열쇠\n<비밀> 한교',
+  );
+  assert.equal(
+    buildAiChapterText({
+      title: '1화',
+      draft: { content: '<p>같은 원고</p>' },
+      manuscript: { content: '<p style="text-align:left">같은 원고</p>' },
+    }),
+    '1화\n\n같은 원고',
+  );
+  assert.ok(
+    buildAiChapterText({
+      draft: { content: '<p>초안</p>' },
+      manuscript: { content: '<p>완성본</p>' },
+    }).includes('초안\n\n완성본'),
+  );
+});
+
+test('first generation ignores invented IDs and matches existing names without duplicates', async (t) => {
+  const { service, node } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const draft = {
+    synopsis: '첫 줄거리',
+    events: [],
+    characters: [{ id: 'character-1', name: '태윤', info: '학생', keywords: [], summary: '발견' }],
+    plotHooks: [
+      { id: 'hook-1', description: '문 비밀', plantedAt: '첫 회차', status: 'unresolved' },
+    ],
+  };
+  t.mock.method(ollama, 'chat', async () => ({ message: { content: JSON.stringify(draft) } }));
+  const result = await service.generateStoryMemory(node.path);
+  assert.notEqual(result.characters[0].id, 'character-1');
+  assert.notEqual(result.plotHooks[0].id, 'hook-1');
+  const merged = mergeMemoryChanges(result, result, draft);
+  assert.equal(merged.characters.length, 1);
+  assert.equal(merged.plotHooks.length, 1);
+  assert.equal(merged.characters[0].id, result.characters[0].id);
+  assert.equal(merged.plotHooks[0].id, result.plotHooks[0].id);
+});
+
+test('group characters and hooks preserve chapter history and exclude future information', async (t) => {
+  const { service, workspace, node } = await fixture(t);
+  const empty = { synopsis: '', events: [], characters: [], plotHooks: [] };
+  const first = await service.saveStoryMemory(node.path, {
+    ...empty,
+    characters: [{ name: '태윤', info: '평범한 학생', keywords: [], summary: '문을 발견했다' }],
+    plotHooks: [{ description: '문 뒤의 비밀', plantedAt: '첫 회차', status: 'unresolved' }],
+  });
+  const second = await service.createDocument(workspace, '2화');
+  const third = await service.createDocument(workspace, '3화');
+  await service.saveStoryMemory(third.path, {
+    ...empty,
+    characters: [
+      { ...first.characters[0], info: '미래에 밝혀진 왕의 정체', summary: '왕으로 즉위했다' },
+    ],
+    plotHooks: [
+      { ...first.plotHooks[0], status: 'resolved' },
+      { description: '미래의 새 비밀', plantedAt: '3화', status: 'unresolved' },
+    ],
+  });
+  const past = (await service.getDocument(second.path)).document.storyMemory;
+  assert.equal(past.characters[0].info, '평범한 학생');
+  assert.equal(past.plotHooks.length, 1);
+  assert.equal(past.plotHooks[0].status, 'unresolved');
+  const latest = await service.getLatestStoryMemory(workspace);
+  assert.equal(latest.characters.length, 1);
+  assert.equal(latest.characters[0].introducedAt, node.id);
+  assert.equal(latest.plotHooks[0].resolvedAt, third.id);
+  assert.equal(latest.plotHooks[0].plantedChapterId, node.id);
+  await service.updateSelectedLLMModel('test-model');
+  let prompt = '';
+  t.mock.method(ollama, 'chat', async (payload) => {
+    prompt = payload.messages.map((message) => message.content).join('\n');
+    return {
+      message: { content: JSON.stringify({ comments: [{ content: 'test', tone: 'test' }] }) },
+    };
+  });
+  await service.generateComments({
+    documentPath: second.path,
+    startAge: 20,
+    endAge: 20,
+    expertise: 40,
+    count: 1,
+  });
+  assert.ok(prompt.includes('문 뒤의 비밀'));
+  assert.ok(!prompt.includes('미래의 새 비밀'));
+  assert.ok(!prompt.includes('미래에 밝혀진 왕의 정체'));
+  await service.generateComments({
+    documentPath: third.path,
+    startAge: 20,
+    endAge: 20,
+    expertise: 40,
+    count: 1,
+  });
+  assert.ok(prompt.includes('미래에 밝혀진 왕의 정체'));
+  assert.ok(!prompt.includes('문 뒤의 비밀'));
+});
+
+test('AI deltas merge partial updates and keep omitted group records and regenerated chapter changes', async (t) => {
+  const { service, workspace, node } = await fixture(t);
+  const first = await service.saveStoryMemory(node.path, {
+    synopsis: '첫 줄거리',
+    events: [],
+    characters: [
+      { name: '태윤', info: '학생', keywords: ['신중함'], summary: '문을 발견' },
+      { name: '동생', info: '동생 정보', keywords: [], summary: '대기' },
+    ],
+    plotHooks: [
+      { description: '문 비밀', plantedAt: '첫 회차', status: 'unresolved' },
+      { description: '열쇠 비밀', plantedAt: '첫 회차', status: 'unresolved' },
+    ],
+  });
+  const next = await service.createDocument(workspace, '2화');
+  await service.updateSelectedLLMModel('test-model');
+  let delta = {
+    synopsis: '두 번째 줄거리',
+    events: [],
+    characters: [{ id: first.characters[0].id, info: '왕의 정체' }],
+    plotHooks: [{ id: first.plotHooks[0].id, status: 'resolved' }],
+  };
+  t.mock.method(ollama, 'chat', async (payload) => {
+    assert.ok(payload.messages[0].content.includes('변경된 인물만 반환'));
+    return { message: { content: JSON.stringify(delta) } };
+  });
+  const generated = await service.generateStoryMemory(next.path);
+  assert.equal(generated.characters.length, 2);
+  assert.equal(generated.characters[0].info, '왕의 정체');
+  assert.deepEqual(generated.characters[0].keywords, ['신중함']);
+  assert.equal(generated.plotHooks.length, 2);
+  assert.equal(generated.plotHooks[0].resolvedAt, next.id);
+  const rows = await withDatabase(workspace, (db) =>
+    all(db, 'SELECT payload FROM group_memory_revisions WHERE chapterId = ?', [next.id]),
+  );
+  assert.equal(JSON.parse(rows[0].payload).characters.length, 1);
+  assert.equal(JSON.parse(rows[0].payload).plotHooks.length, 1);
+  delta = { synopsis: '재생성 줄거리', events: [], characters: [], plotHooks: [] };
+  const regenerated = await service.generateStoryMemory(next.path);
+  assert.equal(regenerated.characters[0].info, '왕의 정체');
+  assert.equal(regenerated.plotHooks[0].status, 'resolved');
+  const last = await service.createDocument(workspace, '정보 없는 마지막 회차');
+  const group = await service.getLatestStoryMemory(workspace);
+  assert.equal(group.generatedAt, '');
+  assert.equal(group.characters.length, 2);
+  assert.equal(group.plotHooks.length, 2);
+  delta = {
+    synopsis: '실패',
+    events: [],
+    characters: [{ id: 'unknown', info: '위조' }],
+    plotHooks: [],
+  };
+  await assert.rejects(service.generateStoryMemory(last.path), /알 수 없는 인물 ID/);
+  assert.equal((await readDocumentContent(workspace, last.id)).storyMemory, undefined);
+});
+
+test('batch comment deletion is atomic and restricted to the selected chapter', async (t) => {
+  const { service, workspace, node } = await fixture(t);
+  const other = await service.createDocument(workspace, '다른 회차');
+  const [rows, otherRows] = await withDatabase(workspace, async (db) => {
+    const repo = createDocumentCommentRepository(db);
+    return [
+      await repo.insertComments(
+        node.id,
+        Array.from({ length: 501 }, (_, index) => ({ content: `댓글 ${index}` })),
+      ),
+      await repo.insertComments(other.id, [{ content: '다른 회차 댓글' }]),
+    ];
+  });
+  await withDatabase(workspace, (db) =>
+    run(
+      db,
+      `CREATE TRIGGER fail_comment_delete BEFORE DELETE ON document_comments WHEN OLD.id = '${rows[500].id}' BEGIN SELECT RAISE(ABORT, 'delete failed'); END`,
+    ),
+  );
+  await assert.rejects(
+    service.removeGeneratedComment(
+      node.path,
+      rows.map((row) => row.id),
+    ),
+    /delete failed/,
+  );
+  assert.equal((await service.listGeneratedComments(node.path)).length, 501);
+  await withDatabase(workspace, (db) => run(db, 'DROP TRIGGER fail_comment_delete'));
+  await service.removeGeneratedComment(node.path, [rows[0].id, otherRows[0].id]);
+  assert.equal((await service.listGeneratedComments(node.path)).length, 500);
+  assert.equal((await service.listGeneratedComments(other.path)).length, 1);
+  await service.removeGeneratedComment(
+    node.path,
+    rows.slice(1).map((row) => row.id),
+  );
+  assert.equal((await service.listGeneratedComments(node.path)).length, 0);
+  await assert.rejects(service.removeGeneratedComment(other.path, []), /선택해주세요/);
+});
+
+test('legacy workspace database migrates to Groomi without losing manuscripts or its original database', async (t) => {
+  const { service, workspace, node, file } = await fixture(t);
+  const current = getWorkspaceDatabaseFilePath(workspace);
+  const legacy = path.join(workspace, LEGACY_DATABASE_NAME);
+  const manuscript = await fs.readFile(file, 'utf8');
+  await fs.rename(current, legacy);
+  const originalDatabase = await fs.readFile(legacy);
+  await service.initCurrentWorkspace();
+  assert.equal((await service.getDocument(node.path)).id, node.id);
+  assert.equal((await service.getDocument(node.path)).document.draft.content, '첫 저장 원고');
+  assert.equal(await fs.readFile(file, 'utf8'), manuscript);
+  assert.deepEqual(await fs.readFile(legacy), originalDatabase);
+  await fs.access(current);
+  assert.equal(path.basename(current), 'groomi.sqlite');
+  assert.equal(path.basename(getDefaultWorkspacePath()), 'groomi');
+  await service.updateDocument(node.path, { document: { draft: text('새 이름으로 저장') } });
+  assert.equal((await service.getDocument(node.path)).document.draft.content, '새 이름으로 저장');
+  assert.deepEqual(await fs.readFile(legacy), originalDatabase);
+});
+
+test('group memory transaction failure preserves manuscript and chapter history', async (t) => {
+  const { service, workspace, node, file } = await fixture(t);
+  const before = await fs.readFile(file, 'utf8');
+  await withDatabase(workspace, (db) =>
+    run(
+      db,
+      `CREATE TRIGGER fail_group_memory BEFORE INSERT ON group_memory_revisions BEGIN SELECT RAISE(ABORT, 'group save failed'); END`,
+    ),
+  );
+  await assert.rejects(
+    service.saveStoryMemory(node.path, {
+      synopsis: 'failed',
+      events: [],
+      characters: [],
+      plotHooks: [],
+    }),
+    /group save failed/,
+  );
+  assert.equal(await fs.readFile(file, 'utf8'), before);
+  const rows = await withDatabase(workspace, (db) =>
+    all(db, 'SELECT * FROM group_memory_revisions'),
+  );
+  assert.equal(rows.length, 0);
 });
 
 test('resolved hooks persist, remain editable, and are excluded from comment context', async (t) => {
@@ -32,10 +280,28 @@ test('resolved hooks persist, remain editable, and are excluded from comment con
   ];
   const memory = { synopsis: '', events: [], characters: [], plotHooks: hooks };
   await service.saveStoryMemory(node.path, memory);
-  assert.deepEqual((await service.getDocument(node.path)).document.storyMemory.plotHooks, hooks);
+  assert.deepEqual(
+    (await service.getDocument(node.path)).document.storyMemory.plotHooks.map(
+      ({ description, plantedAt, status }) => ({
+        description,
+        plantedAt,
+        ...(status ? { status } : {}),
+      }),
+    ),
+    hooks,
+  );
   hooks[0].description = 'edited-resolved-secret';
   await service.saveStoryMemory(node.path, memory);
-  assert.deepEqual((await service.getLatestStoryMemory(workspace)).plotHooks, hooks);
+  assert.deepEqual(
+    (await service.getLatestStoryMemory(workspace)).plotHooks.map(
+      ({ description, plantedAt, status }) => ({
+        description,
+        plantedAt,
+        ...(status ? { status } : {}),
+      }),
+    ),
+    hooks,
+  );
 
   const next = await service.createDocument(workspace, 'second');
   await service.updateSelectedLLMModel('test-model');
@@ -63,10 +329,20 @@ test('resolved hooks persist, remain editable, and are excluded from comment con
   });
   const generated = await service.generateStoryMemory(next.path);
   assert.ok(prompts[1].includes('edited-resolved-secret'));
-  assert.deepEqual(generated.plotHooks, hooks);
-  assert.deepEqual((await service.getDocument(next.path)).document.storyMemory.plotHooks, hooks);
+  assert.deepEqual(
+    generated.plotHooks.map(({ description, plantedAt, status }) => ({
+      description,
+      plantedAt,
+      ...(status ? { status } : {}),
+    })),
+    hooks,
+  );
+  assert.deepEqual(
+    (await service.getDocument(next.path)).document.storyMemory.plotHooks,
+    generated.plotHooks,
+  );
   await service.createDocument(workspace, '정보 없는 최신 회차');
-  assert.equal(await service.getLatestStoryMemory(workspace), null);
+  assert.equal((await service.getLatestStoryMemory(workspace)).plotHooks.length, hooks.length);
 });
 
 test('generated memory persists without overwriting manuscript edits and stays within its group', async (t) => {
@@ -464,7 +740,7 @@ test('version 1 workspace upgrades without losing existing manuscripts or settin
   await service.updateDocument(node.path, { document: { draft: text('업데이트 후 저장') } });
   assert.equal((await service.getDocument(node.path)).document.draft.content, '업데이트 후 저장');
   const versions = await withDatabase(workspace, (db) => all(db, 'PRAGMA user_version'));
-  assert.equal(versions[0].user_version, 3);
+  assert.equal(versions[0].user_version, 4);
 });
 
 test('newer workspace format is rejected without downgrading its schema', async (t) => {

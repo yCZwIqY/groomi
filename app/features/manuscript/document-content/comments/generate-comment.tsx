@@ -98,7 +98,12 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
       showToast(`${documentTitle} 댓글 생성이 완료됐습니다.`, 'success');
       onGenerated?.(comments);
     } catch (error) {
-      finishTask(taskId, 'error');
+      finishTask(
+        taskId,
+        'error',
+        undefined,
+        error instanceof Error ? error.message : '댓글 생성에 실패했습니다.',
+      );
       showToast(error instanceof Error ? error.message : '댓글 생성에 실패했습니다.', 'danger');
     } finally {
       setLoading(false);

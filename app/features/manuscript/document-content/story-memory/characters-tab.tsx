@@ -35,6 +35,9 @@ const CharactersTab = ({ characters, onAdd, onRemove, onChange }: Props) => (
         className={reviewCardClass}
         key={index}
       >
+        {character.introducedAtTitle && (
+          <p className={'text-xs text-stone-500'}>최초 등장 · {character.introducedAtTitle}</p>
+        )}
         <div className={'flex items-center gap-2'}>
           <DnInput
             size={'s'}

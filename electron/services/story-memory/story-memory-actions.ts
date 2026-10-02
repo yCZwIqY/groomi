@@ -1,4 +1,4 @@
-import { buildAiChapterText } from '../ai-text.js';
+import { buildAiChapterText, toAiText } from '../ai-text.js';
 import { mergeMemoryChanges } from './merge-memory-changes.js';
 import { logGenerationMetrics } from '../ai-generation-metrics.js';
 import { getGroupMemory } from './group-memory.js';
@@ -47,85 +47,88 @@ export function getNovelType(store: WorkspaceStore, parentId: string | null): No
 
 export function createStoryMemoryActions(context: WorkspaceServiceContext) {
   async function generateStoryMemory(documentPath: string): Promise<StoryMemoryDraft> {
-    const {
-      workspacePath,
-      documentId,
-      model,
-      standalone,
-      existingRevision,
-      knownMemory,
-      systemPrompt,
-      userPrompt,
-    } = await serializeWorkspaceOperation(async () => {
-      const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
+    const { workspacePath, documentId, model, standalone, knownMemory, systemPrompt, userPrompt } =
+      await serializeWorkspaceOperation(async () => {
+        const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
-      if (!node || node.type !== 'document') {
-        throw new Error('회차 정보를 생성할 문서를 찾을 수 없습니다.');
-      }
+        if (!node || node.type !== 'document') {
+          throw new Error('회차 정보를 생성할 문서를 찾을 수 없습니다.');
+        }
 
-      const setting = await context.withWorkspaceRepositories(
-        workspacePath,
-        async ({ settingInfo }) => settingInfo.findSettingInfo(),
-      );
+        const setting = await context.withWorkspaceRepositories(
+          workspacePath,
+          async ({ settingInfo }) => settingInfo.findSettingInfo(),
+        );
 
-      if (
-        !(setting.aiProvider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel)
-      ) {
-        throw new Error('LLM 모델이 선택되지 않았습니다.');
-      }
+        if (
+          !(setting.aiProvider === 'openrouter'
+            ? setting.openRouterModel
+            : setting.selectedLLMModel)
+        ) {
+          throw new Error('LLM 모델이 선택되지 않았습니다.');
+        }
 
-      const novelType = getNovelType(store, node.parentId ?? null);
-      const standalone = novelType === 'short';
+        const novelType = getNovelType(store, node.parentId ?? null);
+        const standalone = novelType === 'short';
 
-      const currentContent = await readDocumentContent(workspacePath, node.id);
-      const currentText = buildAiChapterText(currentContent, node.name);
+        const currentContent = await readDocumentContent(workspacePath, node.id);
+        if (!toAiText(currentContent.manuscript?.content)) {
+          throw new Error(
+            '회차 정보를 생성할 원고 본문이 없습니다. 원고를 작성한 뒤 다시 시도해주세요. 초고는 회차 정보 생성에 사용되지 않습니다.',
+          );
+        }
+        const currentText = buildAiChapterText(
+          {
+            title: currentContent.title,
+            subTitle: currentContent.subTitle,
+            manuscript: currentContent.manuscript,
+          },
+          node.name,
+        );
 
-      let previousMemory: StoryMemory | null = null;
+        let previousMemory: StoryMemory | null = null;
 
-      if (!standalone) {
-        const chapters = sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
-        const previous = chapters[chapters.findIndex((chapter) => chapter.id === node.id) - 1];
-        previousMemory = previous
-          ? ((await readDocumentContent(workspacePath, previous.id)).storyMemory ?? null)
-          : null;
-      }
-      const knownMemory = await getGroupMemory(
-        workspacePath,
-        store,
-        node.parentId ?? null,
-        node.id,
-      );
-      if (!standalone) {
-        previousMemory = {
-          synopsis: '',
-          events: [],
-          generatedAt: '',
-          ...previousMemory,
-          ...knownMemory,
+        if (!standalone) {
+          const chapters = sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
+          const previous = chapters[chapters.findIndex((chapter) => chapter.id === node.id) - 1];
+          previousMemory = previous
+            ? ((await readDocumentContent(workspacePath, previous.id)).storyMemory ?? null)
+            : null;
+        }
+        const knownMemory = await getGroupMemory(
+          workspacePath,
+          store,
+          node.parentId ?? null,
+          node.id,
+          { includeCurrentChapter: false },
+        );
+        if (!standalone) {
+          previousMemory = {
+            synopsis: '',
+            events: [],
+            generatedAt: '',
+            ...previousMemory,
+            ...knownMemory,
+          };
+        }
+
+        const { systemPrompt, userPrompt } = buildStoryMemoryPrompt({
+          chapterTitle: currentContent.title ?? node.name,
+          currentText,
+          previousMemory,
+          standalone,
+        });
+
+        return {
+          workspacePath,
+          documentId: node.id,
+          model: await resolveAiConfiguration(setting),
+          standalone,
+          knownMemory,
+          systemPrompt,
+          userPrompt,
         };
-      }
-
-      const { systemPrompt, userPrompt } = buildStoryMemoryPrompt({
-        chapterTitle: currentContent.title ?? node.name,
-        currentText,
-        previousMemory,
-        standalone,
       });
-
-      return {
-        workspacePath,
-        documentId: node.id,
-        model: await resolveAiConfiguration(setting),
-        standalone,
-        existingRevision: {
-          characters: currentContent.storyMemory?.characters ?? [],
-          plotHooks: currentContent.storyMemory?.plotHooks ?? [],
-        },
-        knownMemory,
-        systemPrompt,
-        userPrompt,
-      };
-    });
 
     const startedAt = performance.now();
     const response = await generateAiJson(model, [
@@ -141,7 +144,11 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       response,
     );
     const changes = parseStoryMemoryDraft(response.message.content);
-    const draft = { ...changes, ...mergeMemoryChanges(existingRevision, knownMemory, changes) };
+    // Regeneration replaces this chapter's revision. Prior chapters only resolve partial updates.
+    const draft = {
+      ...changes,
+      ...mergeMemoryChanges({ characters: [], plotHooks: [] }, knownMemory, changes),
+    };
 
     if (standalone) {
       draft.synopsis = '';

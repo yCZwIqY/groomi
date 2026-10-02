@@ -270,8 +270,71 @@ test('AI input removes editor formatting while preserving prose and deduplicatin
   );
 });
 
+test('story memory requires manuscript text and explains that drafts are excluded', async (t) => {
+  const { service, node, file } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const chat = t.mock.method(ollama, 'chat', async () => {
+    throw new Error('AI must not be called');
+  });
+  for (const content of ['', '<p><br></p>']) {
+    await service.updateDocument(node.path, { document: { manuscript: text(content) } });
+    const before = await fs.readFile(file, 'utf8');
+    await assert.rejects(
+      service.generateStoryMemory(node.path),
+      /원고 본문이 없습니다.*초고는 회차 정보 생성에 사용되지 않습니다/,
+    );
+    assert.equal(await fs.readFile(file, 'utf8'), before);
+  }
+  assert.equal(chat.mock.callCount(), 0);
+});
+
+for (const novelType of ['long', 'short']) {
+  test(`story memory regeneration excludes its own history and drafts (${novelType})`, async (t) => {
+    const { service, workspace } = await fixture(t);
+    const group = await service.createWorkspace(path.join(workspace, novelType), novelType);
+    const chapter = await service.createDocument(group.path, '1화');
+    await service.updateSelectedLLMModel('test-model');
+    await service.updateDocument(chapter.path, {
+      document: {
+        draft: text('초고에만 있는 잘못된 이야기'),
+        manuscript: text('<p>수정본에만 있는 이야기</p>'),
+      },
+    });
+    const memory = {
+      synopsis: '이전 생성 줄거리',
+      events: [],
+      characters: [{ name: '이전 생성 인물', info: '오류', keywords: [], summary: '오류' }],
+      plotHooks: [{ description: '이전 생성 떡밥', plantedAt: '1화', status: 'unresolved' }],
+    };
+    await service.saveStoryMemory(chapter.path, memory);
+    const prompts = [];
+    t.mock.method(ollama, 'chat', async ({ messages }) => {
+      prompts.push(messages.find((message) => message.role === 'user').content);
+      return { message: { content: JSON.stringify(memory) } };
+    });
+    for (let index = 0; index < 3; index++) await service.generateStoryMemory(chapter.path);
+    assert.equal(prompts[0], prompts[1]);
+    assert.equal(prompts[1], prompts[2]);
+    assert.ok(!prompts[0].includes('이전 생성 인물'));
+    assert.ok(!prompts[0].includes('이전 생성 떡밥'));
+    assert.ok(!prompts[0].includes('이전 생성 줄거리'));
+    assert.ok(!prompts[0].includes('초고에만 있는'));
+    assert.equal(prompts[0].split('수정본에만 있는 이야기').length - 1, 1);
+    ollama.chat.mock.mockImplementation(async () => ({
+      message: {
+        content: JSON.stringify({ synopsis: '', events: [], characters: [], plotHooks: [] }),
+      },
+    }));
+    const regenerated = await service.generateStoryMemory(chapter.path);
+    assert.deepEqual(regenerated.characters, []);
+    assert.deepEqual(regenerated.plotHooks, []);
+    assert.deepEqual((await readDocumentContent(workspace, chapter.id)).storyMemory.characters, []);
+  });
+}
+
 test('first generation ignores invented IDs and matches existing names without duplicates', async (t) => {
   const { service, node } = await fixture(t);
+  await service.updateDocument(node.path, { document: { manuscript: text('수정본 본문') } });
   await service.updateSelectedLLMModel('test-model');
   const draft = {
     synopsis: '첫 줄거리',
@@ -350,7 +413,7 @@ test('group characters and hooks preserve chapter history and exclude future inf
   assert.ok(!prompt.includes('문 뒤의 비밀'));
 });
 
-test('AI deltas merge partial updates and keep omitted group records and regenerated chapter changes', async (t) => {
+test('AI deltas preserve prior chapters but replace regenerated chapter changes', async (t) => {
   const { service, workspace, node } = await fixture(t);
   const first = await service.saveStoryMemory(node.path, {
     synopsis: '첫 줄거리',
@@ -365,6 +428,7 @@ test('AI deltas merge partial updates and keep omitted group records and regener
     ],
   });
   const next = await service.createDocument(workspace, '2화');
+  await service.updateDocument(next.path, { document: { manuscript: text('두 번째 수정본') } });
   await service.updateSelectedLLMModel('test-model');
   let delta = {
     synopsis: '두 번째 줄거리',
@@ -389,9 +453,14 @@ test('AI deltas merge partial updates and keep omitted group records and regener
   assert.equal(JSON.parse(rows[0].payload).plotHooks.length, 1);
   delta = { synopsis: '재생성 줄거리', events: [], characters: [], plotHooks: [] };
   const regenerated = await service.generateStoryMemory(next.path);
-  assert.equal(regenerated.characters[0].info, '왕의 정체');
-  assert.equal(regenerated.plotHooks[0].status, 'resolved');
+  assert.equal(regenerated.characters[0].info, '학생');
+  assert.equal(regenerated.plotHooks[0].status, 'unresolved');
+  const regeneratedRows = await withDatabase(workspace, (db) =>
+    all(db, 'SELECT payload FROM group_memory_revisions WHERE chapterId = ?', [next.id]),
+  );
+  assert.deepEqual(JSON.parse(regeneratedRows[0].payload), { characters: [], plotHooks: [] });
   const last = await service.createDocument(workspace, '정보 없는 마지막 회차');
+  await service.updateDocument(last.path, { document: { manuscript: text('마지막 수정본') } });
   const group = await service.getLatestStoryMemory(workspace);
   assert.equal(group.generatedAt, '');
   assert.equal(group.characters.length, 2);
@@ -546,6 +615,7 @@ test('resolved hooks persist, remain editable, and are excluded from comment con
     prompts.push(payload.messages.map((message) => message.content).join('\n'));
     return { message: { content: JSON.stringify({ ...memory, plotHooks: [] }) } };
   });
+  await service.updateDocument(next.path, { document: { manuscript: text('다음 수정본') } });
   const generated = await service.generateStoryMemory(next.path);
   assert.ok(prompts[1].includes('edited-resolved-secret'));
   assert.deepEqual(
@@ -569,6 +639,7 @@ test('generated memory persists without overwriting manuscript edits and stays w
   const group = await service.createWorkspace(path.join(workspace, '그룹'), 'long');
   const other = await service.createWorkspace(path.join(workspace, '다른 그룹'), 'long');
   const chapter = await service.createDocument(group.path, '첫 회차');
+  await service.updateDocument(chapter.path, { document: { manuscript: text('생성 전 수정본') } });
   const generated = {
     synopsis: '최신 줄거리',
     events: [{ description: '주요 사건', importance: '상' }],

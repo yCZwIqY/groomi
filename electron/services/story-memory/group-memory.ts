@@ -16,6 +16,7 @@ export async function getGroupMemory(
   store: WorkspaceStore,
   parentId: string | null,
   chapterId: string,
+  options: { includeCurrentChapter?: boolean } = {},
 ): Promise<GroupMemoryRevision> {
   const novelType = parentId
     ? store.groups.find((group) => group.id === parentId)?.novelType
@@ -29,7 +30,10 @@ export async function getGroupMemory(
     )
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const currentIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
-  const visibleChapters = chapters.slice(0, currentIndex + 1);
+  const visibleChapters = chapters.slice(
+    0,
+    currentIndex + (options.includeCurrentChapter === false ? 0 : 1),
+  );
   const groupId = parentId ?? store.workspace.id;
   const revisions = await withDatabase(workspacePath, async (db) => {
     const rows = await all<{ chapterId: string; payload: string }>(

@@ -93,6 +93,16 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   const handleGenerateStoryMemory = async () => {
     if (isBusy || saving || preparingStoryMemoryRef.current) return;
 
+    const manuscriptBody = new DOMParser().parseFromString(manuscript, 'text/html').body;
+    manuscriptBody.querySelectorAll('script, style').forEach((element) => element.remove());
+    if (!manuscriptBody.textContent?.trim() && !manuscriptBody.querySelector('img')) {
+      showToast(
+        '회차 정보를 생성할 원고 본문이 없습니다. 원고를 작성한 뒤 다시 시도해주세요. 초고는 회차 정보 생성에 사용되지 않습니다.',
+        'danger',
+      );
+      return;
+    }
+
     preparingStoryMemoryRef.current = true;
     setPreparingStoryMemory(true);
     try {

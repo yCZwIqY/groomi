@@ -34,9 +34,9 @@ async function click(label) {
   assert.ok(result.clicked, `Missing control ${label}: ${result.body}`);
 }
 
-async function edit(content) {
+async function edit(content, editorIndex = 0) {
   await window.webContents.executeJavaScript(`(() => {
-    const editor = document.querySelector('[contenteditable="true"]');
+    const editor = document.querySelectorAll('[contenteditable="true"]')[${editorIndex}];
     editor.focus();
     const range = document.createRange();
     range.selectNodeContents(editor);
@@ -48,7 +48,7 @@ async function edit(content) {
   await until(
     () =>
       window.webContents.executeJavaScript(
-        `document.querySelector('[contenteditable="true"]')?.textContent === ${JSON.stringify(content)}`,
+        `document.querySelectorAll('[contenteditable="true"]')[${editorIndex}]?.textContent === ${JSON.stringify(content)}`,
       ),
     'editor input',
   );
@@ -294,14 +294,34 @@ app
           }),
         );
       assert.equal(options.headers.Authorization, 'Bearer test-openrouter-ui-key');
-      if (url.endsWith('/key')) return new Response(JSON.stringify({ data: {} }));
+      if (url.endsWith('/key'))
+        return new Response(
+          JSON.stringify({
+            data: {
+              usage: 1.25,
+              usage_daily: 0.05,
+              usage_monthly: 0.25,
+              limit: 10,
+              limit_remaining: 8.75,
+              free_model_daily_requests: { used: 5, limit: 50, remaining: 45 },
+            },
+          }),
+        );
       assert.ok(url.endsWith('/chat/completions'));
       remoteRequests++;
       const body = JSON.parse(options.body);
       assert.equal(body.model, 'test/remote-model');
-      assert.ok(
-        body.messages.some((message) => message.content.includes('OpenRouter 생성 직전 입력')),
-      );
+      if (responseMode === 'story-memory') {
+        assert.equal(body.response_format.type, 'json_schema');
+        assert.ok(body.messages.some((message) => message.content.includes('기존에 저장된 원고')));
+        assert.ok(
+          !body.messages.some((message) => message.content.includes('OpenRouter 생성 직전 입력')),
+        );
+      } else {
+        assert.ok(
+          body.messages.some((message) => message.content.includes('OpenRouter 생성 직전 입력')),
+        );
+      }
       assert.ok(
         (await service.getDocument(first.path)).document.draft.content.includes(
           'OpenRouter 생성 직전 입력',
@@ -318,6 +338,7 @@ app
       return new Response(
         JSON.stringify({
           choices: [{ message: { content: JSON.stringify(payload) }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 11, completion_tokens: 7 },
         }),
       );
     };
@@ -449,6 +470,32 @@ app
         ),
       'remote generation ready with Ollama stopped',
     );
+    await edit(' ', 1);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '회차 정보 생성' && !button.disabled)`,
+        ),
+      'empty manuscript generation button ready',
+    );
+    await click('회차 정보 생성');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('초고는 회차 정보 생성에 사용되지 않습니다')`,
+        ),
+      'immediate empty manuscript toast',
+    );
+    assert.equal(remoteRequests, 0);
+    console.log('PASS: empty manuscript shows an immediate toast without AI requests');
+    await edit('기존에 저장된 원고', 1);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '저장' && !button.disabled)`,
+        ),
+      'manuscript restored',
+    );
     await click('저장');
     await until(
       () => window.webContents.executeJavaScript(`document.body.textContent.includes('저장완료')`),
@@ -494,6 +541,24 @@ app
         ),
       'return to AI settings',
     );
+    const usage = await window.webContents.executeJavaScript(
+      'window.electronAPI.getOpenRouterUsage()',
+    );
+    assert.equal(usage.key.remainingCredits, 8.75);
+    assert.equal(usage.local.requests, 2);
+    assert.equal(usage.local.inputTokens, 22);
+    assert.equal(usage.local.outputTokens, 14);
+    assert.equal(usage.local.failedRequests, 0);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('section[aria-label="OpenRouter 사용량"]');
+      return panel?.textContent.includes('$8.7500') && panel.textContent.includes('Groomi 입력 토큰') && panel.textContent.includes('22');
+    })()`),
+      'usage statistics rendered after generation',
+    );
+    await click('사용량 새로고침');
+    console.log('PASS: OpenRouter key limits and persisted Groomi tokens and requests are shown');
     await window.webContents.executeJavaScript(`(() => {
       const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent === 'AI 모델 설정');
       section.querySelector('button[aria-expanded]').click();
@@ -666,6 +731,17 @@ app
         ),
       'story memory modal',
     );
+    await click('등장인물');
+    await click('인물 추가');
+    await window.webContents.executeJavaScript(
+      `document.querySelector('.modal-overlay--open input[placeholder="이름"]').focus()`,
+    );
+    window.webContents.insertText('테스트 인물');
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('.modal-overlay--open select[aria-label="인물 상태"]');
+      select.value = 'dead';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
     await window.webContents.executeJavaScript(`(() => {
       const modal = document.querySelector('.modal-overlay--open');
       [...modal.querySelectorAll('button')].find((button) => button.textContent.trim() === '저장').click();
@@ -673,6 +749,10 @@ app
     await until(
       () => window.webContents.executeJavaScript(`!document.querySelector('.modal-overlay--open')`),
       'story memory saved',
+    );
+    assert.equal(
+      (await service.getDocument(first.path)).document.storyMemory.characters[0].status,
+      'dead',
     );
     assert.equal(
       await window.webContents.executeJavaScript(

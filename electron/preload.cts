@@ -48,6 +48,7 @@ const channels = {
     deleteOpenRouterKey: 'setting:delete-openrouter-key',
     checkOpenRouter: 'setting:check-openrouter',
     listOpenRouterModels: 'setting:list-openrouter-models',
+    getOpenRouterUsage: 'setting:get-openrouter-usage',
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },
@@ -163,6 +164,7 @@ const settingApi = {
   deleteOpenRouterKey: () => ipcRenderer.invoke(channels.setting.deleteOpenRouterKey),
   checkOpenRouter: () => ipcRenderer.invoke(channels.setting.checkOpenRouter),
   listOpenRouterModels: () => ipcRenderer.invoke(channels.setting.listOpenRouterModels),
+  getOpenRouterUsage: () => ipcRenderer.invoke(channels.setting.getOpenRouterUsage),
   getSettingInfo: () => ipcRenderer.invoke(channels.setting.getInfo),
   updateSelectedEmbeddingModel: (selectedEmbeddingModel: string | null) =>
     ipcRenderer.invoke(channels.setting.updateSelectedEmbeddingModel, selectedEmbeddingModel),

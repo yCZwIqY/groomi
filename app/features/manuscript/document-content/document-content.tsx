@@ -19,11 +19,6 @@ type Props = {
   onUpdated?: (workspaceData: WorkspaceNode) => void;
 };
 
-type DocumentTextStatus = {
-  charsWithSpaces: number;
-  charsWithoutSpaces: number;
-};
-
 type ShowType = 'DRAFT' | 'MANUSCRIPT' | 'SPLIT';
 const ShowTypeOptions: Option<ShowType>[] = [
   {
@@ -170,6 +165,8 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       events: savedMemory?.events ?? [],
       characters: savedMemory?.characters ?? [],
       plotHooks: savedMemory?.plotHooks ?? [],
+      eventsMode: savedMemory?.eventsMode,
+      stale: savedMemory?.stale,
     });
   };
 
@@ -191,6 +188,9 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           >
             사건·인물·떡밥 보기
           </StoryMemoryActionButton>
+          {workspaceData.document?.storyMemory?.stale && (
+            <span className={'text-xs text-amber-700'}>원고 또는 앞 회차 변경 · 재생성 필요</span>
+          )}
         </div>
         <div className={'flex flex-1 gap-4 p-4 overflow-hidden'}>
           {showType !== 'MANUSCRIPT' && (

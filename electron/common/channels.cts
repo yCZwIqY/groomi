@@ -45,6 +45,7 @@ const channels = {
     deleteOpenRouterKey: 'setting:delete-openrouter-key',
     checkOpenRouter: 'setting:check-openrouter',
     listOpenRouterModels: 'setting:list-openrouter-models',
+    getOpenRouterUsage: 'setting:get-openrouter-usage',
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },

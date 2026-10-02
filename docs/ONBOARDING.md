@@ -26,7 +26,6 @@ SUIT 폰트 라이선스는 `assets/FONT-LICENSE`에 포함되어 있습니다.
 
 기능 소개 아래 `#screenshots` 섹션에 3개 이미지 공간이 있습니다.
 현재 실제 캡처는 `editor-screenshot.png`, `story-screenshot.png`, `comments-screenshot.png`입니다.
-`assets/screenshot-placeholder.svg`는 향후 캡처가 없는 영역에 사용할 안내 이미지입니다.
 
 1. 캡처 파일을 `docs/assets/`에 넣습니다. 예: `editor-screenshot.png`,
    `story-screenshot.png`, `comments-screenshot.png`.

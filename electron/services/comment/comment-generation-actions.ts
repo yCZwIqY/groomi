@@ -4,7 +4,8 @@ import { getGroupMemory } from '../story-memory/group-memory.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
 import { readDocumentContent } from '../workspace/store.js';
-import { getNovelType, sortChaptersByCreatedAt } from '../story-memory/story-memory-actions.js';
+import { getNovelType } from '../story-memory/story-memory-actions.js';
+import { sortChapters } from '../story-memory/chapter-order.js';
 import { getDefaultCommentStyleExamples } from './default-comment-style-examples.js';
 import { toGeneratedComment } from './comment-store-actions.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
@@ -202,7 +203,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         // 같은 부모 그룹 안에서 화차 순서(n-2/n-1)를 계산해 맥락을 구성한다.
         const chapters = isStandaloneGroup
           ? []
-          : sortChaptersByCreatedAt(store.documents, node.parentId ?? null);
+          : sortChapters(store.documents, node.parentId ?? null);
         const currentIndex = chapters.findIndex((chapter) => chapter.id === node.id);
         const earlierSynopsisChapter = currentIndex - 2 >= 0 ? chapters[currentIndex - 2] : null;
         const previousChapter = currentIndex - 1 >= 0 ? chapters[currentIndex - 1] : null;

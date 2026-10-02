@@ -1,4 +1,5 @@
 import { getGroupMemory } from './story-memory/group-memory.js';
+import { isMemoryStale } from './story-memory/memory-context.js';
 import path from 'node:path';
 import { createDocumentInfoRepository } from '../repositories/document-info-repository.js';
 import { createWorkspaceNodeRepository } from '../repositories/workspace-node-repository.js';
@@ -107,6 +108,13 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
 
     const content = await readDocumentContent(workspacePath, node.id);
     const groupMemory = await getGroupMemory(workspacePath, store, node.parentId ?? null, node.id);
+    const stale = await isMemoryStale(
+      workspacePath,
+      store,
+      node.parentId ?? null,
+      node.id,
+      content,
+    );
     const document = {
       ...node,
       document: {
@@ -117,7 +125,14 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
         manuscript: content.manuscript,
         storyMemory:
           content.storyMemory || groupMemory.characters.length || groupMemory.plotHooks.length
-            ? { synopsis: '', events: [], generatedAt: '', ...content.storyMemory, ...groupMemory }
+            ? {
+                synopsis: '',
+                events: [],
+                generatedAt: '',
+                ...content.storyMemory,
+                ...groupMemory,
+                stale: Boolean(stale),
+              }
             : undefined,
         draftLength: content.draft?.content?.length ?? node.document?.draftLength ?? 0,
         manuscriptLength:

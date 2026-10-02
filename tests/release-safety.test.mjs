@@ -29,6 +29,263 @@ import {
   resolveAiConfiguration,
 } from '../dist-electron/services/ai-provider.js';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { parseStoryMemoryDraft } from '../dist-electron/services/story-memory/story-memory-actions.js';
+import { storyMemorySchema } from '../dist-electron/services/story-memory/story-memory-schema.js';
+import { findCharacterByName } from '../dist-electron/services/story-memory/character-name.js';
+import { createOpenRouterUsageStore } from '../dist-electron/services/openrouter-usage.js';
+
+test('OpenRouter usage persists concurrent requests per key without saving credentials or prose', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'groomi-usage-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'usage.json');
+  const store = createOpenRouterUsageStore(file);
+  assert.equal((await store.read('private-key')).requests, 0);
+  await Promise.all([
+    store.record('private-key', { failed: false, inputTokens: 10, outputTokens: 4 }),
+    store.record('private-key', { failed: false, inputTokens: 20, outputTokens: 6 }),
+    store.record('private-key', { failed: true }),
+    store.record('private-key', { failed: false }),
+    store.record('another-key', { failed: false, inputTokens: 1, outputTokens: 2 }),
+  ]);
+  const restored = await createOpenRouterUsageStore(file).read('private-key');
+  assert.equal(restored.requests, 4);
+  assert.equal(restored.failedRequests, 1);
+  assert.equal(restored.inputTokens, 30);
+  assert.equal(restored.outputTokens, 10);
+  assert.equal(restored.missingTokenResponses, 1);
+  assert.ok(restored.startedAt);
+  assert.equal((await store.read('another-key')).requests, 1);
+  assert.ok(!(await fs.readFile(file, 'utf8')).includes('private-key'));
+  await fs.writeFile(file, '{broken');
+  await assert.rejects(store.record('private-key', { failed: true }), /기존 기록은 보존/);
+  assert.equal(await fs.readFile(file, 'utf8'), '{broken');
+});
+
+test('generation records API attempts and tokens before response validation without losing successful output', async (t) => {
+  const records = [];
+  const configuration = {
+    provider: 'openrouter',
+    model: 'test/model',
+    apiKey: 'fake',
+    recordUsage: async (record) => {
+      records.push(record);
+    },
+  };
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{}' } }],
+          usage: { prompt_tokens: 13, completion_tokens: 7 },
+        }),
+      ),
+  );
+  await generateAiJson(configuration, []);
+  assert.deepEqual(records, [{ failed: false, inputTokens: 13, outputTokens: 7 }]);
+  globalThis.fetch.mock.mockImplementation(async () => new Response('{}', { status: 429 }));
+  await assert.rejects(generateAiJson(configuration, []), /요청 한도/);
+  assert.deepEqual(records.at(-1), { failed: true });
+  globalThis.fetch.mock.mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{}' }, finish_reason: 'length' }],
+          usage: { prompt_tokens: 4, completion_tokens: 9 },
+        }),
+      ),
+  );
+  await assert.rejects(generateAiJson(configuration, []), /길이 제한/);
+  assert.equal(records.at(-1).outputTokens, 9);
+  globalThis.fetch.mock.mockImplementation(
+    async () => new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] })),
+  );
+  const result = await generateAiJson(
+    {
+      ...configuration,
+      recordUsage: async () => {
+        throw new Error('disk full');
+      },
+    },
+    [],
+  );
+  assert.equal(result.message.content, '{}');
+});
+
+test('character matching normalizes spacing and uses parenthetical aliases only when unambiguous', () => {
+  const mother = { name: '엄마', id: 'mother' };
+  assert.equal(findCharacterByName([mother], ' 엄마 （언니） '), mother);
+  assert.equal(
+    findCharacterByName([{ name: '엄마(언니)' }, { name: '엄마(동생)' }], '엄마'),
+    undefined,
+  );
+});
+
+test('story memory parses reasoning and fences, validates enums and maps only registered aliases', () => {
+  const aliases = {
+    characters: new Map([['c1', 'real-character']]),
+    plotHooks: new Map([['h1', 'real-hook']]),
+  };
+  const parsed = parseStoryMemoryDraft(
+    '<think>{"private":"reasoning"}</think>```json\n' +
+      JSON.stringify({
+        synopsis: '줄거리',
+        events: [{ description: '사건', importance: '상' }],
+        characters: [{ id: 'c1', status: 'dead', summary: '사망했다' }],
+        plotHooks: [
+          { id: 'h1', status: 'resolved' },
+          { description: '새 떡밥', status: 'unresolved' },
+        ],
+      }) +
+      '\n```',
+    aliases,
+    '2화',
+  );
+  assert.equal(parsed.characters[0].id, 'real-character');
+  assert.equal(parsed.plotHooks[0].id, 'real-hook');
+  assert.equal(parsed.plotHooks[1].plantedAt, '2화');
+  const empty = { synopsis: '', events: [], characters: [], plotHooks: [] };
+  assert.throws(
+    () =>
+      parseStoryMemoryDraft(
+        JSON.stringify({ ...empty, events: [{ description: '사건', importance: '최상' }] }),
+        aliases,
+        '2화',
+      ),
+    /importance/,
+  );
+  assert.throws(
+    () =>
+      parseStoryMemoryDraft(
+        JSON.stringify({ ...empty, characters: [{ id: 'real-character', status: 'active' }] }),
+        aliases,
+        '2화',
+      ),
+    /알 수 없는 인물 ID/,
+  );
+  assert.throws(
+    () =>
+      parseStoryMemoryDraft(
+        JSON.stringify({ ...empty, plotHooks: [{ status: 'resolved' }] }),
+        aliases,
+        '2화',
+      ),
+    /description/,
+  );
+});
+
+test('story memory providers share the schema and explicit generation options', async (t) => {
+  t.mock.method(ollama, 'chat', async (payload) => {
+    assert.deepEqual(payload.format, storyMemorySchema);
+    assert.equal(payload.options.num_ctx, 32768);
+    assert.equal(payload.options.temperature, 0.2);
+    return { message: { content: '{}' } };
+  });
+  const options = {
+    schema: storyMemorySchema,
+    schemaName: 'story_memory',
+    numCtx: 32768,
+    temperature: 0.2,
+  };
+  await generateAiJson({ provider: 'ollama', model: 'test' }, [], options);
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.response_format.type, 'json_schema');
+    assert.deepEqual(payload.response_format.json_schema.schema, storyMemorySchema);
+    assert.equal(payload.provider.require_parameters, true);
+    assert.equal(payload.temperature, 0.2);
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] }));
+  });
+  await generateAiJson({ provider: 'openrouter', model: 'test', apiKey: 'fake' }, [], options);
+});
+
+test('generation retries validation once and preserves saved memory on final failure', async (t) => {
+  const { service, node, workspace } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  await service.updateDocument(node.path, { document: { manuscript: text('원고') } });
+  let calls = 0;
+  const empty = { synopsis: '줄거리', events: [], characters: [], plotHooks: [] };
+  t.mock.method(ollama, 'chat', async ({ messages }) => {
+    calls++;
+    if (calls % 2 === 0) assert.ok(messages.at(-1).content.includes('응답 검증 실패'));
+    return { message: { content: calls === 2 ? JSON.stringify(empty) : '{broken' } };
+  });
+  await service.generateStoryMemory(node.path);
+  assert.equal(calls, 2);
+  const before = await readDocumentContent(workspace, node.id);
+  await assert.rejects(service.generateStoryMemory(node.path), /JSON/);
+  assert.equal(calls, 4);
+  assert.deepEqual(
+    (await service.getDocument(node.path)).document.storyMemory.synopsis,
+    before.storyMemory.synopsis,
+  );
+});
+
+test('generation looks back across gaps, bounds events, and detects changed earlier chapters', async (t) => {
+  const { service, node, workspace } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const character = { name: '주인공', info: '학생', keywords: [], summary: '기존 행동' };
+  const memory = {
+    synopsis: '이전 누적 줄거리',
+    events: Array.from({ length: 50 }, (_, index) => ({
+      description: `event-${index}`,
+      importance: '상',
+    })),
+    characters: [character],
+    plotHooks: [],
+  };
+  const first = await service.saveStoryMemory(node.path, memory);
+  await service.createDocument(workspace, '정보 없는 중간 회차');
+  const next = await service.createDocument(workspace, '3화');
+  await service.updateDocument(next.path, { document: { manuscript: text('세 번째 원고') } });
+  t.mock.method(ollama, 'chat', async ({ messages }) => {
+    const prompt = messages[1].content;
+    assert.ok(prompt.includes('이전 누적 줄거리'));
+    assert.ok(prompt.includes('기존 행동'));
+    assert.ok(!prompt.includes(first.characters[0].id));
+    assert.ok(!prompt.includes('event-0&quot;'));
+    assert.ok(prompt.includes('event-49'));
+    return {
+      message: {
+        content: JSON.stringify({
+          synopsis: '새 누적 줄거리',
+          events: [{ description: '이번 회차 사건', importance: '중' }],
+          characters: [],
+          plotHooks: [],
+        }),
+      },
+    };
+  });
+  const generated = await service.generateStoryMemory(next.path);
+  assert.equal(generated.eventsMode, 'chapter');
+  assert.equal(generated.events.length, 1);
+  assert.equal((await service.getDocument(next.path)).document.storyMemory.stale, false);
+  await service.saveStoryMemory(node.path, { ...memory, synopsis: '앞 회차 수정' });
+  assert.equal((await service.getDocument(next.path)).document.storyMemory.stale, true);
+  assert.equal((await service.getLatestStoryMemory(workspace)).stale, true);
+});
+
+test('generation warns when previous chapters have no memory and save rejects forged identities', async (t) => {
+  const { service, node, workspace } = await fixture(t);
+  await service.updateSelectedLLMModel('test-model');
+  const next = await service.createDocument(workspace, '2화');
+  await service.updateDocument(next.path, { document: { manuscript: text('두 번째 원고') } });
+  const chat = t.mock.method(ollama, 'chat', async () => {
+    throw new Error('must not call AI');
+  });
+  await assert.rejects(service.generateStoryMemory(next.path), /앞 회차 정보를 먼저 생성/);
+  assert.equal(chat.mock.callCount(), 0);
+  await assert.rejects(
+    service.saveStoryMemory(node.path, {
+      synopsis: '',
+      events: [],
+      characters: [{ id: 'forged', name: '누군가', info: '', keywords: [], summary: '' }],
+      plotHooks: [],
+    }),
+    /알 수 없는 인물 ID/,
+  );
+});
 
 test('OpenRouter credentials stay encrypted outside the workspace and survive failed replacement', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'groomi-keys-'));
@@ -310,7 +567,14 @@ for (const novelType of ['long', 'short']) {
     const prompts = [];
     t.mock.method(ollama, 'chat', async ({ messages }) => {
       prompts.push(messages.find((message) => message.role === 'user').content);
-      return { message: { content: JSON.stringify(memory) } };
+      return {
+        message: {
+          content: JSON.stringify({
+            ...memory,
+            plotHooks: memory.plotHooks.map(({ plantedAt, ...hook }) => hook),
+          }),
+        },
+      };
     });
     for (let index = 0; index < 3; index++) await service.generateStoryMemory(chapter.path);
     assert.equal(prompts[0], prompts[1]);
@@ -332,23 +596,21 @@ for (const novelType of ['long', 'short']) {
   });
 }
 
-test('first generation ignores invented IDs and matches existing names without duplicates', async (t) => {
+test('first generation assigns application IDs to new records', async (t) => {
   const { service, node } = await fixture(t);
   await service.updateDocument(node.path, { document: { manuscript: text('수정본 본문') } });
   await service.updateSelectedLLMModel('test-model');
   const draft = {
     synopsis: '첫 줄거리',
     events: [],
-    characters: [{ id: 'character-1', name: '태윤', info: '학생', keywords: [], summary: '발견' }],
-    plotHooks: [
-      { id: 'hook-1', description: '문 비밀', plantedAt: '첫 회차', status: 'unresolved' },
-    ],
+    characters: [{ name: '태윤', info: '학생', keywords: [], summary: '발견' }],
+    plotHooks: [{ description: '문 비밀', status: 'unresolved' }],
   };
   t.mock.method(ollama, 'chat', async () => ({ message: { content: JSON.stringify(draft) } }));
   const result = await service.generateStoryMemory(node.path);
   assert.notEqual(result.characters[0].id, 'character-1');
   assert.notEqual(result.plotHooks[0].id, 'hook-1');
-  const merged = mergeMemoryChanges(result, result, draft);
+  const merged = mergeMemoryChanges(result, result);
   assert.equal(merged.characters.length, 1);
   assert.equal(merged.plotHooks.length, 1);
   assert.equal(merged.characters[0].id, result.characters[0].id);
@@ -433,8 +695,8 @@ test('AI deltas preserve prior chapters but replace regenerated chapter changes'
   let delta = {
     synopsis: '두 번째 줄거리',
     events: [],
-    characters: [{ id: first.characters[0].id, info: '왕의 정체' }],
-    plotHooks: [{ id: first.plotHooks[0].id, status: 'resolved' }],
+    characters: [{ id: 'c1', info: '왕의 정체' }],
+    plotHooks: [{ id: 'h1', status: 'resolved' }],
   };
   t.mock.method(ollama, 'chat', async (payload) => {
     assert.ok(payload.messages[0].content.includes('변경된 인물만 반환'));
@@ -617,7 +879,7 @@ test('resolved hooks persist, remain editable, and are excluded from comment con
   });
   await service.updateDocument(next.path, { document: { manuscript: text('다음 수정본') } });
   const generated = await service.generateStoryMemory(next.path);
-  assert.ok(prompts[1].includes('edited-resolved-secret'));
+  assert.ok(!prompts[1].includes('edited-resolved-secret'));
   assert.deepEqual(
     generated.plotHooks.map(({ description, plantedAt, status }) => ({
       description,

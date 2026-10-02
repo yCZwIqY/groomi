@@ -27,3 +27,7 @@ export async function checkOpenRouter() {
 export async function listOpenRouterModels() {
   return requireElectronApi().listOpenRouterModels();
 }
+
+export async function getOpenRouterUsage() {
+  return requireElectronApi().getOpenRouterUsage();
+}

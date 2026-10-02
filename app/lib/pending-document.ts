@@ -1,5 +1,4 @@
 type PendingDocument = {
-  hasChanges: () => boolean;
   save: () => Promise<void>;
 };
 
@@ -10,10 +9,6 @@ export function registerPendingDocument(document: PendingDocument) {
   return () => {
     if (pendingDocument === document) pendingDocument = null;
   };
-}
-
-export function hasPendingDocumentChanges() {
-  return pendingDocument?.hasChanges() ?? false;
 }
 
 export async function flushPendingDocument() {

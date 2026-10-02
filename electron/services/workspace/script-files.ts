@@ -9,10 +9,6 @@ import { ensureDirectory } from '../file-system.js';
 import { atomicWrite } from '../atomic-file.js';
 import type { StoredDocumentContent } from './store-types.js';
 
-export function isEmptyJsonFileContent(raw: unknown) {
-  return typeof raw !== 'string' || raw.trim() === '';
-}
-
 export function parseDocumentContent(raw: string): StoredDocumentContent {
   const value = JSON.parse(raw);
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

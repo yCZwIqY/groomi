@@ -13,7 +13,7 @@ interface Props {
   onRemove: (index: number) => void;
   onChange: (
     index: number,
-    key: 'name' | 'info' | 'keywordsText' | 'summary',
+    key: 'name' | 'info' | 'keywordsText' | 'summary' | 'status',
     value: string,
   ) => void;
 }
@@ -64,6 +64,17 @@ const CharactersTab = ({ characters, onAdd, onRemove, onChange }: Props) => (
           placeholder={'정보 (역할, 나이, 소속 등)'}
           value={character.info}
         />
+        <select
+          aria-label={'인물 상태'}
+          className={reviewFieldClass}
+          value={character.status ?? 'unknown'}
+          onChange={(event) => onChange(index, 'status', event.target.value)}
+        >
+          <option value={'active'}>활동 중</option>
+          <option value={'dead'}>사망</option>
+          <option value={'left'}>퇴장</option>
+          <option value={'unknown'}>미상</option>
+        </select>
         <DnInput
           size={'s'}
           className={'border-stone-200! text-sm!'}

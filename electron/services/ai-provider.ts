@@ -1,8 +1,14 @@
 import ollama from 'ollama';
 import { getAiCredentials } from './ai-credentials.js';
+import { getOpenRouterUsageStore, type AiUsageRecord } from './openrouter-usage.js';
 
 export type AiProvider = 'ollama' | 'openrouter';
-export type AiConfiguration = { provider: AiProvider; model: string; apiKey?: string };
+export type AiConfiguration = {
+  provider: AiProvider;
+  model: string;
+  apiKey?: string;
+  recordUsage?: (record: AiUsageRecord) => Promise<void>;
+};
 export type OpenRouterModel = {
   id: string;
   name: string;
@@ -19,10 +25,17 @@ export async function resolveAiConfiguration(setting: {
   const provider = setting.aiProvider ?? 'ollama';
   const model = provider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel;
   if (!model) throw new Error('설정에서 AI 모델을 선택해주세요.');
+  const apiKey = provider === 'openrouter' ? await (await getAiCredentials()).readKey() : undefined;
   return {
     provider,
     model,
-    ...(provider === 'openrouter' ? { apiKey: await (await getAiCredentials()).readKey() } : {}),
+    ...(apiKey
+      ? {
+          apiKey,
+          recordUsage: async (record: AiUsageRecord) =>
+            (await getOpenRouterUsageStore()).record(apiKey, record),
+        }
+      : {}),
   };
 }
 
@@ -154,17 +167,57 @@ export async function listOpenRouterModels(): Promise<OpenRouterModel[]> {
 export async function generateAiJson(
   configuration: AiConfiguration,
   messages: { role: 'system' | 'user'; content: string }[],
+  options: { schema?: object; schemaName?: string; temperature?: number; numCtx?: number } = {},
 ) {
+  const estimatedTokens = Math.ceil(
+    messages.reduce((total, message) => total + message.content.length, 0) / 1.5,
+  );
+  if (options.numCtx && estimatedTokens + 4096 > options.numCtx) {
+    console.warn('[ai-context-limit]', {
+      model: configuration.model,
+      estimatedTokens,
+      numCtx: options.numCtx,
+    });
+  }
   if (configuration.provider === 'ollama') {
-    return ollama.chat({ model: configuration.model, messages, format: 'json' });
+    return ollama.chat({
+      model: configuration.model,
+      messages,
+      format: options.schema ?? 'json',
+      options: { temperature: options.temperature, num_ctx: options.numCtx },
+    });
   }
   if (!configuration.apiKey) throw new Error('OpenRouter API 키를 등록해주세요.');
-  const result = await requestOpenRouter('chat/completions', configuration.apiKey, {
-    model: configuration.model,
-    messages,
-    stream: false,
-    response_format: { type: 'json_object' },
-    provider: { require_parameters: true },
+  let result: any;
+  const recordUsage = async (record: AiUsageRecord) => {
+    try {
+      await configuration.recordUsage?.(record);
+    } catch {
+      console.warn('[openrouter-usage] 사용량 기록 저장에 실패했습니다.');
+    }
+  };
+  try {
+    result = await requestOpenRouter('chat/completions', configuration.apiKey, {
+      model: configuration.model,
+      messages,
+      stream: false,
+      response_format: options.schema
+        ? {
+            type: 'json_schema',
+            json_schema: { name: options.schemaName ?? 'response', schema: options.schema },
+          }
+        : { type: 'json_object' },
+      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      provider: { require_parameters: true },
+    });
+  } catch (error) {
+    await recordUsage({ failed: true });
+    throw error;
+  }
+  await recordUsage({
+    failed: false,
+    inputTokens: result.usage?.prompt_tokens,
+    outputTokens: result.usage?.completion_tokens,
   });
   const content = result.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || !content.trim())

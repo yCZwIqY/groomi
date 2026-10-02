@@ -1,16 +1,16 @@
 import type { StoryMemoryCharacter, StoryMemoryPlotHook } from '../workspace/store-types.js';
+import { normalizeCharacterName, findCharacterByName } from './character-name.js';
 
 export function mergeMemoryChanges(
-  existing: { characters: StoryMemoryCharacter[]; plotHooks: StoryMemoryPlotHook[] },
   known: { characters: StoryMemoryCharacter[]; plotHooks: StoryMemoryPlotHook[] },
   changes: { characters: StoryMemoryCharacter[]; plotHooks: StoryMemoryPlotHook[] },
 ) {
-  const characters = [...existing.characters];
-  const plotHooks = [...existing.plotHooks];
+  const characters: StoryMemoryCharacter[] = [];
+  const plotHooks: StoryMemoryPlotHook[] = [];
   for (const change of changes.characters) {
     const previous =
       known.characters.find((item) => change.id && item.id === change.id) ??
-      known.characters.find((item) => item.name === change.name);
+      (change.name ? findCharacterByName(known.characters, change.name) : undefined);
     if (change.id && !previous && !change.name)
       throw new Error('알 수 없는 인물 ID가 생성되었습니다. 다시 생성해주세요.');
     // Model-generated IDs are not identities. Only reuse an ID from group records.
@@ -26,7 +26,9 @@ export function mergeMemoryChanges(
       throw new Error('생성된 인물 정보 형식이 올바르지 않습니다. 다시 생성해주세요.');
     }
     const index = characters.findIndex((item) =>
-      character.id && item.id ? item.id === character.id : item.name === character.name,
+      character.id && item.id
+        ? item.id === character.id
+        : normalizeCharacterName(item.name) === normalizeCharacterName(character.name),
     );
     if (index < 0) characters.push(character);
     else characters[index] = character;

@@ -1,5 +1,7 @@
 import { all, run, withDatabase, withTransaction } from '../../db/connection.js';
 import { readDocumentContent } from '../workspace/script-files.js';
+import { sortChapters } from './chapter-order.js';
+import { normalizeCharacterName } from './character-name.js';
 import type {
   StoryMemoryCharacter,
   StoryMemoryPlotHook,
@@ -21,14 +23,9 @@ export async function getGroupMemory(
   const novelType = parentId
     ? store.groups.find((group) => group.id === parentId)?.novelType
     : store.workspace.novelType;
-  const chapters = store.documents
-    .filter(
-      (chapter) =>
-        chapter.parentId === parentId &&
-        !chapter.deletedAt &&
-        (novelType !== 'short' || chapter.id === chapterId),
-    )
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const chapters = sortChapters(store.documents, parentId).filter(
+    (chapter) => novelType !== 'short' || chapter.id === chapterId,
+  );
   const currentIndex = chapters.findIndex((chapter) => chapter.id === chapterId);
   const visibleChapters = chapters.slice(
     0,
@@ -71,7 +68,9 @@ export async function getGroupMemory(
     const revision = revisions.get(chapter.id);
     for (const character of revision?.characters ?? []) {
       const previous = [...characters.values()].find(
-        (item) => (character.id && item.id === character.id) || item.name === character.name,
+        (item) =>
+          (character.id && item.id === character.id) ||
+          normalizeCharacterName(item.name) === normalizeCharacterName(character.name),
       );
       const id = previous?.id ?? character.id ?? `character:${chapter.id}:${character.name}`;
       characters.set(id, {

@@ -16,6 +16,7 @@ export type StoryMemoryEvent = {
 };
 
 export type StoryMemoryCharacter = {
+  status?: 'active' | 'dead' | 'left' | 'unknown';
   id?: string;
   introducedAt?: string;
   introducedAtTitle?: string;
@@ -37,6 +38,10 @@ export type StoryMemoryPlotHook = {
 };
 
 export type StoryMemory = {
+  eventsMode?: 'chapter';
+  contextFingerprint?: string;
+  sourceManuscriptHash?: string;
+  stale?: boolean;
   synopsis: string;
   events: StoryMemoryEvent[];
   characters: StoryMemoryCharacter[];

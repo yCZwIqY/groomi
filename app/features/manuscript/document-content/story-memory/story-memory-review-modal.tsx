@@ -82,12 +82,12 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
 
   const handleCharacterChange = (
     index: number,
-    key: 'name' | 'info' | 'keywordsText' | 'summary',
+    key: 'name' | 'info' | 'keywordsText' | 'summary' | 'status',
     value: string,
   ) => {
     setCharacters((prev) =>
       prev.map((character, current) =>
-        current === index ? { ...character, [key]: value } : character,
+        current === index ? ({ ...character, [key]: value } as CharacterDraft) : character,
       ),
     );
   };
@@ -118,6 +118,7 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
 
     try {
       const saved = await saveStoryMemory(documentPath, {
+        eventsMode: draft?.eventsMode,
         synopsis,
         events,
         characters: characters.map(({ keywordsText, ...character }) => ({
@@ -164,6 +165,11 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
           </div>
 
           <div className={'pt-4'}>
+            {draft?.stale && (
+              <p className={'mb-3 text-sm text-amber-700'}>
+                원고 또는 앞 회차가 변경됐습니다. 회차 정보를 다시 생성해주세요.
+              </p>
+            )}
             <DnSwitch
               options={TABS}
               setValue={setActiveTab}

@@ -140,7 +140,9 @@ export function buildNodeInfo(workspacePath: string, store: WorkspaceStore) {
 
   for (const group of store.groups) {
     const groupPath = groupPathsById.get(group.id) ?? workspacePath;
-    const parentPath = group.parentId ? (groupPathsById.get(group.parentId) ?? workspacePath) : workspacePath;
+    const parentPath = group.parentId
+      ? (groupPathsById.get(group.parentId) ?? workspacePath)
+      : workspacePath;
     const node = buildWorkspaceNode(group, groupPath, parentPath);
 
     nodeByPath.set(groupPath, node);
@@ -148,7 +150,9 @@ export function buildNodeInfo(workspacePath: string, store: WorkspaceStore) {
   }
 
   for (const document of store.documents) {
-    const parentPath = document.parentId ? (groupPathsById.get(document.parentId) ?? workspacePath) : workspacePath;
+    const parentPath = document.parentId
+      ? (groupPathsById.get(document.parentId) ?? workspacePath)
+      : workspacePath;
     const documentPath = path.join(parentPath, `${document.name}.json`);
     const node = buildDocumentNode(document, documentPath, parentPath);
 
@@ -166,11 +170,7 @@ export function buildNodeInfo(workspacePath: string, store: WorkspaceStore) {
 }
 
 export function buildRootWorkspaceNode(workspacePath: string, store: WorkspaceStore) {
-  return buildWorkspaceNode(
-    store.workspace,
-    workspacePath,
-    path.dirname(workspacePath),
-  );
+  return buildWorkspaceNode(store.workspace, workspacePath, path.dirname(workspacePath));
 }
 
 export function buildTreeNodes(
@@ -179,7 +179,7 @@ export function buildTreeNodes(
   options: { includeDeleted?: boolean } = {},
 ) {
   const includeDeleted = options.includeDeleted ?? false;
-  const { groupPathsById, groupsById } = buildNodeInfo(workspacePath, store);
+  const { groupPathsById } = buildNodeInfo(workspacePath, store);
   const childrenByParentId = new Map<string, Array<WorkspaceStoreGroup | WorkspaceStoreDocument>>();
 
   for (const group of store.groups) {
@@ -211,12 +211,16 @@ export function buildTreeNodes(
       .map((item) => {
         if (item.type === 'workspace') {
           const itemPath = groupPathsById.get(item.id) ?? workspacePath;
-          const parentPath = item.parentId ? (groupPathsById.get(item.parentId) ?? workspacePath) : workspacePath;
+          const parentPath = item.parentId
+            ? (groupPathsById.get(item.parentId) ?? workspacePath)
+            : workspacePath;
 
           return buildWorkspaceNode(item, itemPath, parentPath, buildChildren(item.id));
         }
 
-        const parentPath = item.parentId ? (groupPathsById.get(item.parentId) ?? workspacePath) : workspacePath;
+        const parentPath = item.parentId
+          ? (groupPathsById.get(item.parentId) ?? workspacePath)
+          : workspacePath;
 
         return buildDocumentNode(item, path.join(parentPath, `${item.name}.json`), parentPath);
       })
@@ -242,7 +246,9 @@ export function buildTrashNodes(workspacePath: string, store: WorkspaceStore) {
     }
 
     const groupPath = groupPathsById.get(group.id) ?? workspacePath;
-    const parentPath = group.parentId ? (groupPathsById.get(group.parentId) ?? workspacePath) : workspacePath;
+    const parentPath = group.parentId
+      ? (groupPathsById.get(group.parentId) ?? workspacePath)
+      : workspacePath;
     items.push(buildWorkspaceNode(group, groupPath, parentPath));
   }
 
@@ -251,8 +257,12 @@ export function buildTrashNodes(workspacePath: string, store: WorkspaceStore) {
       continue;
     }
 
-    const parentPath = document.parentId ? (groupPathsById.get(document.parentId) ?? workspacePath) : workspacePath;
-    items.push(buildDocumentNode(document, path.join(parentPath, `${document.name}.json`), parentPath));
+    const parentPath = document.parentId
+      ? (groupPathsById.get(document.parentId) ?? workspacePath)
+      : workspacePath;
+    items.push(
+      buildDocumentNode(document, path.join(parentPath, `${document.name}.json`), parentPath),
+    );
   }
 
   return items.sort((a, b) => {

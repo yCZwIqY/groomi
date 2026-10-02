@@ -47,6 +47,7 @@ declare global {
   };
 
   type StoryMemoryCharacter = {
+    status?: 'active' | 'dead' | 'left' | 'unknown';
     id?: string;
     introducedAt?: string;
     introducedAtTitle?: string;
@@ -68,6 +69,10 @@ declare global {
   };
 
   type StoryMemory = {
+    eventsMode?: 'chapter';
+    contextFingerprint?: string;
+    sourceManuscriptHash?: string;
+    stale?: boolean;
     synopsis: string;
     events: StoryMemoryEvent[];
     characters: StoryMemoryCharacter[];
@@ -75,12 +80,7 @@ declare global {
     generatedAt: string;
   };
 
-  type StoryMemoryDraft = {
-    synopsis: string;
-    events: StoryMemoryEvent[];
-    characters: StoryMemoryCharacter[];
-    plotHooks: StoryMemoryPlotHook[];
-  };
+  type StoryMemoryDraft = Omit<StoryMemory, 'generatedAt'>;
 
   type WorkspaceNode = {
     id?: string;
@@ -105,6 +105,28 @@ declare global {
   };
 
   type AiProvider = 'ollama' | 'openrouter';
+  type OpenRouterUsage = {
+    key: {
+      usedCredits: number | null;
+      dailyCredits: number | null;
+      monthlyCredits: number | null;
+      limit: number | null;
+      remainingCredits: number | null;
+      unlimited: boolean;
+      freeRequests: { used: number | null; limit: number | null; remaining: number | null } | null;
+    } | null;
+    local: {
+      startedAt: string | null;
+      requests: number;
+      failedRequests: number;
+      inputTokens: number;
+      outputTokens: number;
+      missingTokenResponses: number;
+    } | null;
+    remoteError: string | null;
+    localError: string | null;
+    updatedAt: string;
+  };
   type OpenRouterModel = {
     id: string;
     name: string;
@@ -245,6 +267,7 @@ declare global {
       deleteOpenRouterKey: () => Promise<void>;
       checkOpenRouter: () => Promise<void>;
       listOpenRouterModels: () => Promise<OpenRouterModel[]>;
+      getOpenRouterUsage: () => Promise<OpenRouterUsage>;
       getSettingInfo: () => Promise<Setting>;
       updateSelectedEmbeddingModel: (selectedEmbeddingModel: string | null) => Promise<Setting>;
       updateSelectedLLMModel: (selectedLLMModel: string | null) => Promise<Setting>;

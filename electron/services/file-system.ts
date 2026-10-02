@@ -93,17 +93,6 @@ export async function readDirectoryTree(
   });
 }
 
-export async function copyFileToDirectory(sourcePath: string, targetDir: string) {
-  await fs.mkdir(targetDir, { recursive: true });
-
-  const fileName = path.basename(sourcePath);
-  const targetPath = path.join(targetDir, `${crypto.randomUUID()}_${fileName}`);
-
-  await fs.copyFile(sourcePath, targetPath);
-
-  return targetPath;
-}
-
 export async function deleteFile(targetPath: string) {
   await fs.rm(targetPath, { recursive: true });
 }

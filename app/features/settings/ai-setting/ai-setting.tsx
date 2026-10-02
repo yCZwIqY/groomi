@@ -17,6 +17,7 @@ import { showToast } from '~/lib/toast-manager';
 import { describeOpenRouterModel } from '~/lib/ai-model-options';
 import RecommendedFreeModels from './recommended-free-models';
 import RecommendedPaidModels from './recommended-paid-models';
+import OpenRouterUsagePanel from './openrouter-usage-panel';
 
 const AiSetting = () => {
   const [setting, setSetting] = useState<Setting | null>(null);
@@ -28,6 +29,7 @@ const AiSetting = () => {
   const [key, setKey] = useState('');
   const [connection, setConnection] = useState('');
   const [error, setError] = useState('');
+  const [usageVersion, setUsageVersion] = useState(0);
 
   const loadModels = useCallback(async (provider: AiProvider) => {
     if (provider === 'openrouter') {
@@ -219,6 +221,7 @@ const AiSetting = () => {
                       onClick={() =>
                         void runAction(async () => {
                           await saveOpenRouterKey(key);
+                          setUsageVersion((value) => value + 1);
                           setKey('');
                           setConnection('');
                           setSetting(await getSettingInfo());
@@ -235,6 +238,7 @@ const AiSetting = () => {
                         void runAction(async () => {
                           setConnection('');
                           await checkOpenRouter();
+                          setUsageVersion((value) => value + 1);
                           setConnection('연결 확인 완료');
                         })
                       }
@@ -247,6 +251,7 @@ const AiSetting = () => {
                       onClick={() =>
                         void runAction(async () => {
                           await deleteOpenRouterKey();
+                          setUsageVersion((value) => value + 1);
                           setKey('');
                           setConnection('');
                           setSetting(await getSettingInfo());
@@ -274,6 +279,10 @@ const AiSetting = () => {
                         : '키 미등록')}
                   </p>
                 </div>
+                <OpenRouterUsagePanel
+                  key={usageVersion}
+                  hasKey={setting.hasOpenRouterKey}
+                />
                 <RecommendedFreeModels
                   models={routerModels}
                   selectedModel={setting.openRouterModel}

@@ -108,7 +108,6 @@ export function useDocumentSave(props: Props) {
   useEffect(
     () =>
       registerPendingDocument({
-        hasChanges: () => hasChangesRef.current(),
         save: () => saveRef.current(),
       }),
     [props.workspaceData.path],

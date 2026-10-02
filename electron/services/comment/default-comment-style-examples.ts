@@ -97,37 +97,37 @@ const DEFAULT_COMMENT_STYLE_EXAMPLES_JSON = `[
     "expertiseLevel": 60
   },
   {
-    "content": "여기서 표정 한 줄만 더 있었으면 감정선 제대로 터졌을 것 같은데 아깝네요",
+    "content": "여기서 표정 안 보여주는 거 아깝다",
     "tone": "아쉬움",
     "ageGroup": 40,
     "expertiseLevel": 80
   },
   {
-    "content": "대사는 팽팽해서 좋은데 중간 설명이 길어서 긴장감이 살짝 끊겨요",
+    "content": "둘이 싸우는데 설명 들어와서 흐름 끊김",
     "tone": "분석",
     "ageGroup": 30,
     "expertiseLevel": 80
   },
   {
-    "content": "설정 자체는 재밌는데 갑자기 저 능력 쓰니까 좀 뜬금없었음 앞에 힌트가 있었나?",
+    "content": "저 능력 갑자기 어디서 남? 앞에 나온 적 있나",
     "tone": "분석",
     "ageGroup": 30,
     "expertiseLevel": 80
   },
   {
-    "content": "여기 문장이 계속 '~했다'로 끝나서 읽는 리듬이 좀 단조로워요",
+    "content": "했다 했다 했다... 여기 읽다 자꾸 걸림",
     "tone": "분석",
     "ageGroup": 40,
     "expertiseLevel": 100
   },
   {
-    "content": "초반에 던진 복선 여기서 받는 건 좋았어요 근데 주인공이 저 선택까지 하는 이유는 한 끗 부족한 느낌",
+    "content": "아 그때 문 안 잠근 게 이거였네",
     "tone": "분석",
     "ageGroup": 30,
     "expertiseLevel": 100
   },
   {
-    "content": "이 부분은 문단 한두 번만 더 끊어주면 훨씬 잘 읽힐 듯요",
+    "content": "여기 문단 좀 나눠주세요 눈 아파요",
     "tone": "지적",
     "ageGroup": 20,
     "expertiseLevel": 100
@@ -139,14 +139,43 @@ const DEFAULT_COMMENT_STYLE_EXAMPLES_JSON = `[
     "expertiseLevel": 80
   },
   {
-    "content": "어? 이 인물 앞 화에서는 민준이 아니었나요 이름 바뀐 듯",
+    "content": "민준이었잖아 갑자기 민수 누구임",
     "tone": "지적",
     "ageGroup": 30,
     "expertiseLevel": 100
+  },
+  {
+    "content": "와 안 열었어",
+    "tone": "몰입",
+    "ageGroup": null,
+    "expertiseLevel": 0
+  },
+  {
+    "content": "둘 다 끝까지 미안하단 말 안 하네",
+    "tone": "캐릭터 반응",
+    "ageGroup": null,
+    "expertiseLevel": 60
+  },
+  {
+    "content": "아니 쟤가 왜 저걸 받아줌?",
+    "tone": "의문",
+    "ageGroup": null,
+    "expertiseLevel": 80
+  },
+  {
+    "content": "편지는 태웠는데 봉투는 남겼네?",
+    "tone": "추측",
+    "ageGroup": null,
+    "expertiseLevel": 100
+  },
+  {
+    "content": "이번엔 먼저 손 내미네요. 그건 좋다",
+    "tone": "몰입",
+    "ageGroup": null,
+    "expertiseLevel": 80
   }
 ]`;
 
 export function getDefaultCommentStyleExamples() {
   return JSON.parse(DEFAULT_COMMENT_STYLE_EXAMPLES_JSON) as DefaultCommentStyleExample[];
 }
-

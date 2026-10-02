@@ -5,7 +5,7 @@ import { getGroupMemory } from './group-memory.js';
 import { updateDocumentContentWithMetadata } from '../workspace/script-files.js';
 import { run } from '../../db/connection.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
-import ollama from 'ollama';
+import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
 
 import { ensureStore, readDocumentContent } from '../workspace/store.js';
 import { normalizePath, now } from '../workspace/shared.js';
@@ -68,7 +68,9 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
         async ({ settingInfo }) => settingInfo.findSettingInfo(),
       );
 
-      if (!setting.selectedLLMModel) {
+      if (
+        !(setting.aiProvider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel)
+      ) {
         throw new Error('LLM 모델이 선택되지 않았습니다.');
       }
 
@@ -113,7 +115,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       return {
         workspacePath,
         documentId: node.id,
-        model: setting.selectedLLMModel,
+        model: await resolveAiConfiguration(setting),
         standalone,
         existingRevision: {
           characters: currentContent.storyMemory?.characters ?? [],
@@ -126,16 +128,18 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
     });
 
     const startedAt = performance.now();
-    const response = await ollama.chat({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      format: 'json',
-    });
+    const response = await generateAiJson(model, [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ]);
 
-    logGenerationMetrics('story-memory', model, startedAt, systemPrompt + userPrompt, response);
+    logGenerationMetrics(
+      'story-memory',
+      `${model.provider}:${model.model}`,
+      startedAt,
+      systemPrompt + userPrompt,
+      response,
+    );
     const changes = parseStoryMemoryDraft(response.message.content);
     const draft = { ...changes, ...mergeMemoryChanges(existingRevision, knownMemory, changes) };
 

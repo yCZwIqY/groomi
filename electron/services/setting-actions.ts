@@ -1,3 +1,4 @@
+import type { AiProvider } from './ai-provider.js';
 import type { WorkspaceServiceContext } from './workspace-service-context.js';
 
 export function createSettingActions(context: WorkspaceServiceContext) {
@@ -29,7 +30,16 @@ export function createSettingActions(context: WorkspaceServiceContext) {
     return getSettingInfo();
   }
 
+  async function updateAiSettings(provider: AiProvider, model: string | null) {
+    const workspacePath = await context.getCurrentWorkspacePath();
+    await context.withWorkspaceRepositories(workspacePath, async ({ settingInfo }) => {
+      await settingInfo.updateAiSettings(provider, model);
+    });
+    return getSettingInfo();
+  }
+
   return {
+    updateAiSettings,
     getSettingInfo,
     updateSelectedEmbeddingModel,
     updateSelectedLLMModel,

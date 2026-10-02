@@ -96,6 +96,8 @@ export type WorkspaceStoreRecentVisit = {
 };
 
 export type WorkspaceStoreSettingInfo = {
+  aiProvider?: 'ollama' | 'openrouter';
+  openRouterModel?: string | null;
   selectedEmbeddingModel: string | null;
   selectedLLMModel: string | null;
 };

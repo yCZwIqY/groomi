@@ -5,12 +5,13 @@ import {
   INTEREST_OPTIONS,
   REACTION_OPTIONS,
 } from '~/lib/comment-persona-options';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router';
 import { DnRangeSlider } from '~/components/common/slider';
 import { DnChipGroup } from '~/components/common/chip-group';
 import DnButton from '~/components/common/buttons/dn-button';
 import { generateComments } from '~/lib/electron/comment-api';
-import { getOllamaRunning } from '~/lib/ollama-api';
+import { getAiStatus, useAiStatus } from '~/hooks/use-ai-status';
 import { showToast } from '~/lib/toast-manager';
 import { useBackgroundTasks } from '~/stores/use-background-tasks';
 import LoadingOverlay from '~/components/common/loading-overlay';
@@ -40,8 +41,7 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
   const [count, setCount] = useState(10);
 
   const [loading, setLoading] = useState(false);
-  const [checkingOllama, setCheckingOllama] = useState(true);
-  const [ollamaRunning, setOllamaRunning] = useState(false);
+  const aiStatus = useAiStatus(documentPath);
 
   const startTask = useBackgroundTasks((state) => state.startTask);
   const finishTask = useBackgroundTasks((state) => state.finishTask);
@@ -52,35 +52,17 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
   const overlayVisible = loading || isBusy;
   const overlayLabel =
     runningTask?.type === 'story-memory' ? '회차 정보 생성 중…' : '댓글 생성 중…';
-  const disabled = checkingOllama || !ollamaRunning || loading || isBusy;
-
-  const checkOllama = async () => {
-    setCheckingOllama(true);
-
-    try {
-      setOllamaRunning(await getOllamaRunning());
-    } catch {
-      setOllamaRunning(false);
-    } finally {
-      setCheckingOllama(false);
-    }
-  };
-
-  useEffect(() => {
-    void checkOllama();
-  }, []);
+  const disabled = aiStatus.checking || !aiStatus.ready || loading || isBusy;
 
   const handleGenerate = async () => {
     if (disabled) return;
-    if (!ollamaRunning) {
-      showToast('Ollama를 실행한 뒤 다시 시도해주세요.', 'danger');
-      return;
-    }
 
     setLoading(true);
     const taskId = startTask({ documentPath, documentTitle, type: 'comments' });
 
     try {
+      const status = await getAiStatus();
+      if (!status.ready) throw new Error(status.issue);
       const comments = await generateComments({
         documentPath,
         startAge,
@@ -123,6 +105,7 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
           <div className={'typo-b3-b text-stone-900'}>댓글 페르소나 설정</div>
           <div className={'mt-1 typo-b5-r text-stone-400'}>
             저장된 원고 내용을 기준으로 독자 반응 댓글을 생성합니다.
+            {aiStatus.label && <span className={'ml-2'}>{aiStatus.label}</span>}
           </div>
         </div>
         <DnButton
@@ -132,8 +115,8 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
           disabled={disabled}
           onClick={handleGenerate}
         >
-          {checkingOllama
-            ? 'Ollama 확인 중'
+          {aiStatus.checking
+            ? 'AI 설정 확인 중'
             : loading
               ? '댓글 생성 중'
               : isBusy
@@ -141,18 +124,21 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
                 : '댓글 생성'}
         </DnButton>
       </div>
-      {!checkingOllama && !ollamaRunning && (
+      {!aiStatus.checking && aiStatus.issue && (
         <div className='mb-5 flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3'>
           <div>
-            <div className='text-sm font-bold text-amber-800'>Ollama가 실행 중이지 않습니다.</div>
-            <div className='mt-1 text-xs text-amber-700'>
-              댓글 페르소나 설정과 댓글 생성을 사용하려면 Ollama를 먼저 실행해주세요.
-            </div>
+            <div className='text-sm font-bold text-amber-800'>{aiStatus.issue}</div>
+            <Link
+              to={'/setting'}
+              className={'mt-1 inline-block text-xs text-primary-600'}
+            >
+              AI 설정
+            </Link>
           </div>
           <DnButton
             variant='outlined'
-            disabled={checkingOllama}
-            onClick={() => void checkOllama()}
+            disabled={aiStatus.checking}
+            onClick={() => void aiStatus.refresh()}
           >
             다시 확인
           </DnButton>

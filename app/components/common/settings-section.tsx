@@ -20,7 +20,7 @@ export default function SettingsSection({
   const contentId = useId();
 
   return (
-    <section className={'ui-card min-w-0 w-full overflow-hidden'}>
+    <section className={'ui-card min-w-0 w-full overflow-visible'}>
       <header className={'flex items-start justify-between gap-4 p-5'}>
         <div className={'min-w-0'}>
           <div className={'flex items-center gap-2'}>

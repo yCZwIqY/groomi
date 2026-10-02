@@ -43,6 +43,11 @@ const channels = {
   },
   setting: {
     getInfo: 'setting:get-info',
+    updateAiSettings: 'setting:update-ai-settings',
+    saveOpenRouterKey: 'setting:save-openrouter-key',
+    deleteOpenRouterKey: 'setting:delete-openrouter-key',
+    checkOpenRouter: 'setting:check-openrouter',
+    listOpenRouterModels: 'setting:list-openrouter-models',
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },
@@ -152,6 +157,12 @@ const documentApi = {
 };
 
 const settingApi = {
+  updateAiSettings: (provider: 'ollama' | 'openrouter', model: string | null) =>
+    ipcRenderer.invoke(channels.setting.updateAiSettings, provider, model),
+  saveOpenRouterKey: (key: string) => ipcRenderer.invoke(channels.setting.saveOpenRouterKey, key),
+  deleteOpenRouterKey: () => ipcRenderer.invoke(channels.setting.deleteOpenRouterKey),
+  checkOpenRouter: () => ipcRenderer.invoke(channels.setting.checkOpenRouter),
+  listOpenRouterModels: () => ipcRenderer.invoke(channels.setting.listOpenRouterModels),
   getSettingInfo: () => ipcRenderer.invoke(channels.setting.getInfo),
   updateSelectedEmbeddingModel: (selectedEmbeddingModel: string | null) =>
     ipcRenderer.invoke(channels.setting.updateSelectedEmbeddingModel, selectedEmbeddingModel),

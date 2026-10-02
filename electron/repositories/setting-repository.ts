@@ -1,16 +1,22 @@
 import type sqlite3 from 'sqlite3';
 
+import type { AiProvider } from '../services/ai-provider.js';
+
 import { all, run } from '../db/connection.js';
 
 export type SettingInfoRow = {
   id: 'default';
   selectedEmbeddingModel: string | null;
   selectedLLMModel: string | null;
+  aiProvider?: AiProvider;
+  openRouterModel?: string | null;
 };
 
 export type SettingInfo = {
   selectedEmbeddingModel: string | null;
   selectedLLMModel: string | null;
+  aiProvider?: AiProvider;
+  openRouterModel?: string | null;
 };
 
 type TableInfoRow = {
@@ -28,6 +34,11 @@ export function createSettingRepository(db: sqlite3.Database) {
       await run(db, 'ALTER TABLE setting_info ADD COLUMN selectedEmbeddingModel TEXT');
     }
 
+    for (const column of ['aiProvider', 'openRouterModel']) {
+      if (!columnNames.has(column))
+        await run(db, `ALTER TABLE setting_info ADD COLUMN ${column} TEXT`);
+    }
+
     if (!columnNames.has('selectedLLMModel')) {
       await run(db, 'ALTER TABLE setting_info ADD COLUMN selectedLLMModel TEXT');
     }
@@ -39,13 +50,15 @@ export function createSettingRepository(db: sqlite3.Database) {
 
       const rows = await all<SettingInfoRow>(
         db,
-        'SELECT id, selectedEmbeddingModel, selectedLLMModel FROM setting_info WHERE id = ?',
+        'SELECT id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel FROM setting_info WHERE id = ?',
         [DEFAULT_SETTING_ID],
       );
 
       return {
         selectedEmbeddingModel: rows[0]?.selectedEmbeddingModel ?? null,
         selectedLLMModel: rows[0]?.selectedLLMModel ?? null,
+        aiProvider: rows[0]?.aiProvider === 'openrouter' ? 'openrouter' : 'ollama',
+        openRouterModel: rows[0]?.openRouterModel ?? null,
       };
     },
 
@@ -54,13 +67,21 @@ export function createSettingRepository(db: sqlite3.Database) {
         run(
           db,
           `
-            INSERT INTO setting_info (id, selectedEmbeddingModel, selectedLLMModel)
-            VALUES (?, ?, ?)
+            INSERT INTO setting_info (id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               selectedEmbeddingModel = excluded.selectedEmbeddingModel,
-              selectedLLMModel = excluded.selectedLLMModel
+              selectedLLMModel = excluded.selectedLLMModel,
+              aiProvider = excluded.aiProvider,
+              openRouterModel = excluded.openRouterModel
           `,
-          [DEFAULT_SETTING_ID, settingInfo.selectedEmbeddingModel, settingInfo.selectedLLMModel],
+          [
+            DEFAULT_SETTING_ID,
+            settingInfo.selectedEmbeddingModel,
+            settingInfo.selectedLLMModel,
+            settingInfo.aiProvider ?? 'ollama',
+            settingInfo.openRouterModel ?? null,
+          ],
         ),
       );
     },
@@ -77,6 +98,17 @@ export function createSettingRepository(db: sqlite3.Database) {
           `,
           [DEFAULT_SETTING_ID, selectedEmbeddingModel],
         ),
+      );
+    },
+
+    async updateAiSettings(aiProvider: AiProvider, openRouterModel: string | null) {
+      await ensureSettingInfoColumns();
+      await run(
+        db,
+        `INSERT INTO setting_info (id, aiProvider, openRouterModel)
+        VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET
+        aiProvider = excluded.aiProvider, openRouterModel = excluded.openRouterModel`,
+        [DEFAULT_SETTING_ID, aiProvider, openRouterModel],
       );
     },
 

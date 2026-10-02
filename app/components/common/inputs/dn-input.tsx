@@ -50,10 +50,7 @@ const DnInput = ({
   ...rest
 }: Props) => {
   return (
-    <div
-      className={[styles({ variant, size, fontWeight, rounded }), className].join(' ')}
-      {...rest}
-    >
+    <div className={[styles({ variant, size, fontWeight, rounded }), className].join(' ')}>
       <TextInput
         {...rest}
         className={className}

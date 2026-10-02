@@ -2,6 +2,7 @@ import type { HTMLAttributes } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { FiChevronDown } from 'react-icons/fi';
 import { tv } from 'tailwind-variants/lite';
+import DnInput from '../inputs/dn-input';
 
 type SelectOption = {
   description?: string;
@@ -11,6 +12,7 @@ type SelectOption = {
 
 interface Props extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
   disabled?: boolean;
+  autocomplete?: boolean;
   emptyLabel?: string;
   hint?: string;
   label?: string;
@@ -51,6 +53,7 @@ const styles = tv({
 const DnSelect = ({
   className,
   disabled,
+  autocomplete = false,
   emptyLabel = '선택 가능한 항목 없음',
   hint,
   label,
@@ -63,8 +66,26 @@ const DnSelect = ({
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const classes = styles({ open });
   const selectedOption = options.find((option) => option.value === value);
+  const filteredOptions = autocomplete
+    ? options.filter((option) =>
+        `${option.label} ${option.value}`.toLowerCase().includes(query.trim().toLowerCase()),
+      )
+    : options;
+  const listId = `${id}-list`;
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query, value, open]);
+
+  useEffect(() => {
+    if (activeIndex >= 0)
+      document.getElementById(`${id}-option-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, id]);
 
   useEffect(() => {
     if (!open) {
@@ -74,6 +95,7 @@ const DnSelect = ({
     const handlePointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
+        setQuery('');
       }
     };
 
@@ -84,6 +106,7 @@ const DnSelect = ({
   const handleSelect = (nextValue: string | number) => {
     onChange?.(nextValue);
     setOpen(false);
+    setQuery('');
   };
 
   return (
@@ -100,20 +123,106 @@ const DnSelect = ({
           {label}
         </label>
       )}
-      <button
-        aria-expanded={open}
-        aria-haspopup='listbox'
-        className={classes.trigger()}
-        disabled={disabled}
-        id={id}
-        onClick={() => setOpen((current) => !current)}
-        type='button'
-      >
-        <span className={selectedOption ? classes.triggerText() : classes.placeholder()}>
-          {selectedOption?.label ?? placeholder}
-        </span>
-        <FiChevronDown className={classes.icon()} />
-      </button>
+      {autocomplete ? (
+        <div
+          className={`${classes.trigger()} focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100 ${disabled ? 'bg-stone-100 text-stone-400' : ''}`}
+        >
+          <DnInput
+            id={id}
+            role={'combobox'}
+            aria-label={label}
+            aria-expanded={open && !disabled}
+            aria-controls={listId}
+            aria-autocomplete={'list'}
+            aria-activedescendant={
+              open && activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
+            }
+            autoComplete={'off'}
+            variant={'text'}
+            disabled={disabled}
+            value={open ? query : (selectedOption?.label ?? '')}
+            placeholder={open ? '모델명 또는 ID 검색' : placeholder}
+            className={
+              'min-w-0 flex-1 h-full! px-0! py-0! outline-none! [&_input]:bg-transparent [&_input]:text-sm [&_input]:font-medium'
+            }
+            onFocus={(event) => {
+              inputRef.current = event.target;
+              setQuery('');
+              setOpen(true);
+            }}
+            onClick={() => {
+              if (!open) setQuery('');
+              setOpen(true);
+            }}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setOpen(true);
+            }}
+            onBlur={(event) => {
+              if (!rootRef.current?.contains(event.relatedTarget as Node | null)) {
+                setOpen(false);
+                setQuery('');
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                setOpen(true);
+                setActiveIndex((index) => {
+                  if (!filteredOptions.length) return -1;
+                  return event.key === 'ArrowDown'
+                    ? Math.min(index + 1, filteredOptions.length - 1)
+                    : index <= 0
+                      ? filteredOptions.length - 1
+                      : index - 1;
+                });
+              } else if (event.key === 'Enter' && open && activeIndex >= 0) {
+                event.preventDefault();
+                const option = filteredOptions[activeIndex];
+                if (option) handleSelect(option.value);
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                setOpen(false);
+                setQuery('');
+              }
+            }}
+          />
+          <button
+            type={'button'}
+            disabled={disabled}
+            aria-label={`${label ?? '옵션'} 목록 열기`}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (open) {
+                setOpen(false);
+                setQuery('');
+              } else {
+                inputRef.current?.focus();
+                setQuery('');
+                setOpen(true);
+              }
+            }}
+          >
+            <FiChevronDown className={classes.icon()} />
+          </button>
+        </div>
+      ) : (
+        <button
+          aria-expanded={open}
+          aria-haspopup='listbox'
+          className={classes.trigger()}
+          disabled={disabled}
+          id={id}
+          onClick={() => setOpen((current) => !current)}
+          type='button'
+        >
+          <span className={selectedOption ? classes.triggerText() : classes.placeholder()}>
+            {selectedOption?.label ?? placeholder}
+          </span>
+          <FiChevronDown className={classes.icon()} />
+        </button>
+      )}
 
       {open && !disabled && (
         <div
@@ -121,17 +230,27 @@ const DnSelect = ({
           className={classes.menu()}
           role='listbox'
           tabIndex={-1}
+          id={listId}
         >
-          {options.length === 0 && <div className={classes.empty()}>{emptyLabel}</div>}
-          {options.map((option) => {
+          {filteredOptions.length === 0 && (
+            <div className={classes.empty()}>{query ? '검색 결과가 없습니다.' : emptyLabel}</div>
+          )}
+          {filteredOptions.map((option, index) => {
             const selected = option.value === value;
 
             return (
               <button
                 aria-selected={selected}
-                className={[classes.option(), selected ? classes.selectedOption() : ''].join(' ')}
+                className={[
+                  classes.option(),
+                  selected || (autocomplete && activeIndex === index)
+                    ? classes.selectedOption()
+                    : '',
+                ].join(' ')}
+                id={`${id}-option-${index}`}
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
+                onMouseDown={autocomplete ? (event) => event.preventDefault() : undefined}
                 role='option'
                 type='button'
               >

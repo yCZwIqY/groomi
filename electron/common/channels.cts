@@ -40,6 +40,11 @@ const channels = {
   },
   setting: {
     getInfo: 'setting:get-info',
+    updateAiSettings: 'setting:update-ai-settings',
+    saveOpenRouterKey: 'setting:save-openrouter-key',
+    deleteOpenRouterKey: 'setting:delete-openrouter-key',
+    checkOpenRouter: 'setting:check-openrouter',
+    listOpenRouterModels: 'setting:list-openrouter-models',
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },

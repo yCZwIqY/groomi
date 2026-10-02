@@ -21,6 +21,225 @@ import {
   LEGACY_DATABASE_NAME,
 } from '../dist-electron/common/paths.js';
 import { buildAiChapterText, toAiText } from '../dist-electron/services/ai-text.js';
+import { createAiCredentials } from '../dist-electron/services/ai-credentials.js';
+import {
+  generateAiJson,
+  listOpenRouterModels,
+  requestOpenRouter,
+  resolveAiConfiguration,
+} from '../dist-electron/services/ai-provider.js';
+import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+
+test('OpenRouter credentials stay encrypted outside the workspace and survive failed replacement', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'groomi-keys-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const encryptionKey = randomBytes(32);
+  let available = true;
+  const credentials = createAiCredentials(path.join(root, 'user-data', 'key.enc'), {
+    isEncryptionAvailable: () => available,
+    encryptString(value) {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv);
+      const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+      return Buffer.concat([iv, cipher.getAuthTag(), encrypted]);
+    },
+    decryptString(value) {
+      const decipher = createDecipheriv('aes-256-gcm', encryptionKey, value.subarray(0, 12));
+      decipher.setAuthTag(value.subarray(12, 28));
+      return Buffer.concat([decipher.update(value.subarray(28)), decipher.final()]).toString(
+        'utf8',
+      );
+    },
+  });
+  assert.equal(await credentials.hasKey(), false);
+  await credentials.saveKey('test-secret-key');
+  assert.equal(await credentials.hasKey(), true);
+  assert.equal(await credentials.readKey(), 'test-secret-key');
+  assert.equal(
+    (await fs.readFile(path.join(root, 'user-data', 'key.enc'))).includes('test-secret-key'),
+    false,
+  );
+  available = false;
+  await assert.rejects(credentials.saveKey('replacement-key'), /암호화/);
+  available = true;
+  await assert.rejects(credentials.saveKey('invalid key'), /올바른/);
+  assert.equal(await credentials.readKey(), 'test-secret-key');
+  await credentials.saveKey('replacement-key');
+  assert.equal(await credentials.readKey(), 'replacement-key');
+  assert.deepEqual(await fs.readdir(path.join(root, 'user-data')), ['key.enc']);
+  await credentials.deleteKey();
+  assert.equal(await credentials.hasKey(), false);
+});
+
+test('AI provider settings retain separate models across switching and backup restore', async (t) => {
+  const { service, workspace, root } = await fixture(t);
+  assert.equal((await service.getSettingInfo()).aiProvider, 'ollama');
+  await service.updateSelectedLLMModel('local-model');
+  await service.updateAiSettings('openrouter', 'test/remote-model');
+  const settings = await service.getSettingInfo();
+  assert.equal(settings.selectedLLMModel, 'local-model');
+  assert.equal(settings.openRouterModel, 'test/remote-model');
+  assert.equal(settings.aiProvider, 'openrouter');
+  assert.equal('apiKey' in settings, false);
+  await service.updateAiSettings('ollama', settings.openRouterModel);
+  assert.equal((await service.getSettingInfo()).openRouterModel, 'test/remote-model');
+  const restoredService = createWorkspaceService({ getPath: () => root });
+  await restoredService.setCurrentWorkspacePath(workspace);
+  assert.equal((await restoredService.getSettingInfo()).selectedLLMModel, 'local-model');
+  assert.deepEqual(await resolveAiConfiguration(await restoredService.getSettingInfo()), {
+    provider: 'ollama',
+    model: 'local-model',
+  });
+  const backup = await service.backupWorkspace(root);
+  await service.updateAiSettings('openrouter', 'test/changed-model');
+  await service.restoreWorkspaceBackup(backup.path, root);
+  const restored = await service.getSettingInfo();
+  assert.equal(restored.aiProvider, 'ollama');
+  assert.equal(restored.selectedLLMModel, 'local-model');
+  assert.equal(restored.openRouterModel, 'test/remote-model');
+});
+
+test('OpenRouter error logs explain provider limits without exposing keys or manuscript text', async (t) => {
+  const logs = [];
+  t.mock.method(console, 'error', (...args) => logs.push(args));
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 429,
+            message: 'Provider returned error',
+            metadata: {
+              provider_name: 'Test Provider',
+              raw: 'temporarily rate-limited upstream fake-secret-key 비공개 원고 본문',
+              headers: { 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '12345' },
+            },
+          },
+        }),
+        { status: 429, headers: { 'retry-after': '60', 'x-request-id': 'test-request' } },
+      ),
+  );
+  await assert.rejects(
+    generateAiJson(
+      { provider: 'openrouter', model: 'test/model:free', apiKey: 'fake-secret-key' },
+      [{ role: 'user', content: '비공개 원고 본문' }],
+    ),
+    /모델 제공자의 요청이 일시적으로 제한되었습니다/,
+  );
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0][0], '[openrouter-error]');
+  assert.equal(logs[0][1].httpStatus, 429);
+  assert.equal(logs[0][1].provider, 'Test Provider');
+  assert.equal(logs[0][1].retryAfter, '60');
+  assert.equal(logs[0][1].rateRemaining, '0');
+  assert.equal(logs[0][1].rateReset, '12345');
+  assert.match(logs[0][1].raw, /temporarily rate-limited upstream/);
+  assert.ok(!JSON.stringify(logs).includes('fake-secret-key'));
+  assert.ok(!JSON.stringify(logs).includes('비공개 원고 본문'));
+});
+
+test('OpenRouter sends JSON requests, normalizes usage, and never retries billable errors', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls++;
+    assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
+    assert.equal(options.headers.Authorization, 'Bearer fake-key');
+    assert.equal(options.redirect, 'error');
+    const body = JSON.parse(options.body);
+    assert.equal(body.model, 'test/model');
+    assert.deepEqual(body.response_format, { type: 'json_object' });
+    assert.equal(body.provider.require_parameters, true);
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: '{"events":[]}' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+    );
+  });
+  const result = await generateAiJson(
+    { provider: 'openrouter', model: 'test/model', apiKey: 'fake-key' },
+    [{ role: 'user', content: 'JSON으로 생성' }],
+  );
+  assert.equal(result.message.content, '{"events":[]}');
+  assert.equal(result.prompt_eval_count, 10);
+  assert.equal(result.eval_count, 5);
+  assert.equal(calls, 1);
+  for (const [code, message] of [
+    [401, /API 키/],
+    [402, /잔액/],
+    [429, /한도/],
+    [503, /요청에 실패/],
+  ]) {
+    t.mock.method(globalThis, 'fetch', async () => {
+      calls++;
+      return new Response('', { status: code });
+    });
+    const before = calls;
+    await assert.rejects(
+      generateAiJson({ provider: 'openrouter', model: 'test/model', apiKey: 'fake-key' }, []),
+      message,
+    );
+    assert.equal(calls, before + 1);
+  }
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response(JSON.stringify({ error: { code: 402, message: 'fake-key' } })),
+  );
+  await assert.rejects(requestOpenRouter('key', 'fake-key'), /잔액/);
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: '{}' }, finish_reason: 'length' }] }),
+      ),
+  );
+  await assert.rejects(
+    generateAiJson({ provider: 'openrouter', model: 'test/model', apiKey: 'fake-key' }, []),
+    /길이 제한/,
+  );
+});
+
+test('OpenRouter model list excludes models without text JSON output', async (t) => {
+  const valid = {
+    id: 'test/model',
+    name: 'Test',
+    context_length: 8192,
+    architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+    supported_parameters: ['response_format'],
+    pricing: { prompt: '0.000001', completion: '0.000002' },
+  };
+  t.mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            valid,
+            { ...valid, id: 'test/no-json', supported_parameters: [] },
+            {
+              ...valid,
+              id: 'test/image',
+              architecture: { input_modalities: ['text'], output_modalities: ['image'] },
+            },
+          ],
+        }),
+      ),
+  );
+  assert.deepEqual(await listOpenRouterModels(), [
+    {
+      id: 'test/model',
+      name: 'Test',
+      contextLength: 8192,
+      inputPrice: '0.000001',
+      outputPrice: '0.000002',
+    },
+  ]);
+});
 
 const text = (content) => ({
   content,

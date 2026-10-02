@@ -31,6 +31,8 @@ export function createEmptyStore(workspacePath: string): WorkspaceStore {
     documents: [],
     recentVisits: [],
     settingInfo: {
+      aiProvider: 'ollama',
+      openRouterModel: null,
       selectedEmbeddingModel: null,
       selectedLLMModel: null,
     },
@@ -53,7 +55,8 @@ export function buildStoredDocumentMeta(
     subTitle: content.subTitle ?? document.subTitle,
     draftPath: getWorkspaceScriptDataFilePath('', document.id).replace(/^[/\\]/, ''),
     manuscriptPath: getWorkspaceScriptDataFilePath('', document.id).replace(/^[/\\]/, ''),
-    draftLength: content.draft?.charsWithSpaces ?? content.draft?.content?.length ?? document.draftLength ?? 0,
+    draftLength:
+      content.draft?.charsWithSpaces ?? content.draft?.content?.length ?? document.draftLength ?? 0,
     draftCharsWithoutSpaces:
       content.draft?.charsWithoutSpaces ?? document.draftCharsWithoutSpaces ?? 0,
     manuscriptLength:

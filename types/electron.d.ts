@@ -104,7 +104,19 @@ declare global {
     exists: boolean;
   };
 
+  type AiProvider = 'ollama' | 'openrouter';
+  type OpenRouterModel = {
+    id: string;
+    name: string;
+    contextLength: number;
+    inputPrice: string | null;
+    outputPrice: string | null;
+  };
+
   type Setting = {
+    aiProvider: AiProvider;
+    openRouterModel: string | null;
+    hasOpenRouterKey: boolean;
     selectedEmbeddingModel: string | null;
     selectedLLMModel: string | null;
   };
@@ -228,6 +240,11 @@ declare global {
       restoreDocument: (documentPath: string) => Promise<{ restored: boolean; path: string }>;
       updateDocument: (documentPath: string, data: DocumentUpdatePayload) => Promise<WorkspaceNode>;
 
+      updateAiSettings: (provider: AiProvider, model: string | null) => Promise<Setting>;
+      saveOpenRouterKey: (key: string) => Promise<void>;
+      deleteOpenRouterKey: () => Promise<void>;
+      checkOpenRouter: () => Promise<void>;
+      listOpenRouterModels: () => Promise<OpenRouterModel[]>;
       getSettingInfo: () => Promise<Setting>;
       updateSelectedEmbeddingModel: (selectedEmbeddingModel: string | null) => Promise<Setting>;
       updateSelectedLLMModel: (selectedLLMModel: string | null) => Promise<Setting>;

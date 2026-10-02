@@ -5,7 +5,14 @@ export async function addCommentExample(payload: AddCommentExamplePayload) {
 }
 
 export async function generateComments(payload: GenerateCommentsPayload) {
-  return requireElectronApi().generateComments(payload);
+  try {
+    return await requireElectronApi().generateComments(payload);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message.replace(/^Error invoking remote method '[^']+':\s*/, ''));
+    }
+    throw error;
+  }
 }
 
 export async function listCommentExamples() {

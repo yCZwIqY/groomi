@@ -2,7 +2,7 @@ import { buildAiChapterText } from '../ai-text.js';
 import { logGenerationMetrics } from '../ai-generation-metrics.js';
 import { getGroupMemory } from '../story-memory/group-memory.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
-import ollama from 'ollama';
+import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
 import { readDocumentContent } from '../workspace/store.js';
 import { getNovelType, sortChaptersByCreatedAt } from '../story-memory/story-memory-actions.js';
 import { getDefaultCommentStyleExamples } from './default-comment-style-examples.js';
@@ -183,7 +183,11 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
           async ({ settingInfo }) => settingInfo.findSettingInfo(),
         );
 
-        if (!setting.selectedLLMModel) {
+        if (
+          !(setting.aiProvider === 'openrouter'
+            ? setting.openRouterModel
+            : setting.selectedLLMModel)
+        ) {
           throw new Error('LLM 모델이 선택되지 않았습니다.');
         }
 
@@ -278,7 +282,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         return {
           workspacePath,
           node,
-          model: setting.selectedLLMModel,
+          model: await resolveAiConfiguration(setting),
           personaSlots,
           systemPrompt,
           userPrompt,
@@ -286,21 +290,23 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       });
 
     const startedAt = performance.now();
-    const response = await ollama.chat({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      format: 'json',
-    });
-    logGenerationMetrics('comments', model, startedAt, systemPrompt + userPrompt, response);
+    const response = await generateAiJson(model, [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: userPrompt,
+      },
+    ]);
+    logGenerationMetrics(
+      'comments',
+      `${model.provider}:${model.model}`,
+      startedAt,
+      systemPrompt + userPrompt,
+      response,
+    );
 
     const parsed = parseGeneratedComments(response.message.content, personaSlots);
 

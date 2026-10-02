@@ -2,8 +2,8 @@ import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/stor
 import DnEditor from '~/components/editor/dn-editor';
 import { useRef, useState } from 'react';
 import { useDocumentSave } from './hooks/use-document-save';
-import { getOllamaRunning } from '~/lib/ollama-api';
-import { getSettingInfo } from '~/lib/electron/setting-api';
+import { getAiStatus, useAiStatus } from '~/hooks/use-ai-status';
+import { Link } from 'react-router';
 import DnSwitch from '~/components/common/switch/dn-switch';
 import type { Option } from '~/components';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -54,6 +54,8 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   } = useDocumentContent();
   const [showType, setShowType] = useState<ShowType>('SPLIT');
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
+  const [preparingStoryMemory, setPreparingStoryMemory] = useState(false);
+  const preparingStoryMemoryRef = useRef(false);
   const openedGeneratedDraft = useRef<StoryMemoryDraft | null>(null);
   const { saving, dirty, saveError, clearSaveError, save } = useDocumentSave({
     workspaceData,
@@ -72,9 +74,10 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   );
   const clearPendingStoryMemory = useBackgroundTasks((state) => state.clearPendingStoryMemory);
   const isBusy = useIsDocumentBusy(workspaceData.path);
+  const aiStatus = useAiStatus(workspaceData.path);
 
   const handleSave = async () => {
-    if (isBusy) {
+    if (isBusy || preparingStoryMemoryRef.current) {
       return;
     }
 
@@ -85,13 +88,39 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       return;
     }
     showToast('저장완료', 'success');
-    // Saving works offline; AI is optional and only starts when configured.
+  };
+
+  const handleGenerateStoryMemory = async () => {
+    if (isBusy || saving || preparingStoryMemoryRef.current) return;
+
+    preparingStoryMemoryRef.current = true;
+    setPreparingStoryMemory(true);
     try {
-      const setting = await getSettingInfo();
-      if (!setting.selectedLLMModel || !(await getOllamaRunning())) return;
-    } catch {
-      return;
+      try {
+        await save();
+      } catch {
+        showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
+        return;
+      }
+
+      const status = await getAiStatus();
+      if (!status.ready) {
+        showToast(status.issue, 'danger');
+        return;
+      }
+      startStoryMemoryGeneration();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : '회차 정보 생성을 준비하지 못했습니다.',
+        'danger',
+      );
+    } finally {
+      preparingStoryMemoryRef.current = false;
+      setPreparingStoryMemory(false);
     }
+  };
+
+  const startStoryMemoryGeneration = () => {
     const updatedWorkspace = workspaceData;
 
     const documentTitle = updatedWorkspace.document?.title || updatedWorkspace.name || '문서';
@@ -208,7 +237,13 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
             </div>
           )}
         </div>
-        <div className={'flex items-center justify-end gap-2 self-end'}>
+        <div className={'flex max-w-full flex-wrap items-center justify-end gap-2 self-end'}>
+          <span
+            className={'max-w-[240px] truncate text-xs text-stone-500'}
+            title={aiStatus.label}
+          >
+            {aiStatus.label}
+          </span>
           <div className={`typo-b6-r ${saveError ? 'text-red-500' : 'text-stone-400'}`}>
             {saveError
               ? '저장 실패 · 다시 시도해주세요'
@@ -220,18 +255,47 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           </div>
           {isBusy && (
             <div className={'typo-b6-r text-stone-400'}>
-              이 회차는 백그라운드 작업이 진행 중이라 저장·댓글 생성을 사용할 수 없습니다.
+              이 회차는 백그라운드 작업이 진행 중이라 저장·회차 정보·댓글 생성을 사용할 수 없습니다.
             </div>
           )}
           <DnButton
             className={'w-[120px]'}
-            disabled={isBusy || saving}
+            disabled={isBusy || saving || preparingStoryMemory}
             loading={saving}
             onClick={handleSave}
           >
             저장
           </DnButton>
+          <DnButton
+            variant={'outlined'}
+            disabled={
+              isBusy || saving || preparingStoryMemory || aiStatus.checking || !aiStatus.ready
+            }
+            loading={preparingStoryMemory}
+            title={'현재 내용을 자동으로 저장한 뒤 회차 정보를 생성합니다.'}
+            onClick={handleGenerateStoryMemory}
+          >
+            회차 정보 생성
+          </DnButton>
         </div>
+        {!aiStatus.checking && aiStatus.issue && (
+          <div className={'mt-2 flex items-center justify-end gap-2 text-xs text-stone-500'}>
+            <span>{aiStatus.issue}</span>
+            <Link
+              to={'/setting'}
+              className={'text-primary-600'}
+            >
+              AI 설정
+            </Link>
+            <button
+              type={'button'}
+              onClick={() => void aiStatus.refresh()}
+              className={'text-primary-600'}
+            >
+              다시 확인
+            </button>
+          </div>
+        )}
       </div>
       <div className={'flex flex-col gap-2'}>
         <Comments

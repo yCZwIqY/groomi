@@ -26,7 +26,7 @@ async function until(check, description) {
 
 async function click(label) {
   const result = await window.webContents.executeJavaScript(`(() => {
-    const target = [...document.querySelectorAll('button, a, div.truncate')].find((element) => element.textContent.trim() === ${JSON.stringify(label)});
+    const target = [...document.querySelectorAll('button, a, div.truncate')].find((element) => element.textContent.trim() === ${JSON.stringify(label)} || (element.getAttribute('role') === 'option' && element.firstElementChild?.textContent.trim() === ${JSON.stringify(label)}));
     if (!target) return { missing: ${JSON.stringify(label)}, body: document.body.textContent };
     target.click();
     return { clicked: true };
@@ -65,6 +65,7 @@ app
     const service = createWorkspaceService(app);
     const workspace = path.join(root, 'workspace');
     await service.setCurrentWorkspacePath(workspace);
+    await service.updateSelectedLLMModel('test-local-model');
     const first = await service.createDocument(workspace, '첫 회차');
     const second = await service.createDocument(workspace, '두 번째 회차');
     const seededText = (content) => ({
@@ -209,6 +210,9 @@ app
       'background failure reason retained',
     );
     console.log('PASS: background failure reason is retained in task history');
+    const failureText = await window.webContents.executeJavaScript('document.body.textContent');
+    assert.ok(failureText.includes('Error: 테스트 생성 실패 사유'));
+    assert.ok(!failureText.includes("Error invoking remote method 'comment:generateComments'"));
     ipcMain.removeHandler('ollama:is-running');
     secureHandle('ollama:is-running', async () => false);
     await service.updateSelectedLLMModel(null);
@@ -246,6 +250,262 @@ app
       ),
     );
     console.log('PASS: route navigation flushes the manuscript');
+
+    // Exercise the real credential IPC and both remote generation services without paid requests.
+    let remoteRequests = 0;
+    let responseMode = 'story-memory';
+    globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/models'))
+        return new Response(
+          JSON.stringify({
+            data: [
+              ...[
+                'anthropic/claude-opus-5.5',
+                'openai/gpt-6.1-sol',
+                'anthropic/claude-sonnet-5.5',
+                'upstage/solar-mini4',
+                'upstage/solar-pro4',
+                'deepseek/deepseek-v4.1-flash',
+              ].map((id) => ({
+                id,
+                name: id,
+                context_length: 32768,
+                architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+                supported_parameters: ['response_format'],
+                pricing: { prompt: '0.000001', completion: '0.000002' },
+              })),
+              {
+                id: 'test/remote-model',
+                name: 'Test Remote Model',
+                context_length: 32768,
+                architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+                supported_parameters: ['response_format'],
+                pricing: { prompt: '0.000001', completion: '0.000002' },
+              },
+              {
+                id: 'test/free-model:free',
+                name: 'Test Free Model',
+                context_length: 65536,
+                architecture: { input_modalities: ['text'], output_modalities: ['text'] },
+                supported_parameters: ['response_format'],
+                pricing: { prompt: '0', completion: '0' },
+              },
+            ],
+          }),
+        );
+      assert.equal(options.headers.Authorization, 'Bearer test-openrouter-ui-key');
+      if (url.endsWith('/key')) return new Response(JSON.stringify({ data: {} }));
+      assert.ok(url.endsWith('/chat/completions'));
+      remoteRequests++;
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, 'test/remote-model');
+      assert.ok(
+        body.messages.some((message) => message.content.includes('OpenRouter 생성 직전 입력')),
+      );
+      assert.ok(
+        (await service.getDocument(first.path)).document.draft.content.includes(
+          'OpenRouter 생성 직전 입력',
+        ),
+      );
+      const payload =
+        responseMode === 'story-memory'
+          ? { synopsis: '원격 생성 줄거리', events: [], characters: [], plotHooks: [] }
+          : {
+              comments: Array.from({ length: 5 }, (_, index) => ({
+                content: `원격 댓글 ${index + 1}`,
+              })),
+            };
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(payload) }, finish_reason: 'stop' }],
+        }),
+      );
+    };
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent === 'AI 모델 설정');
+      section.querySelector('button[aria-expanded]').click();
+      const label = [...section.querySelectorAll('label')].find((element) => element.textContent === 'AI 제공자');
+      document.getElementById(label.htmlFor).click();
+    })()`);
+    await click('OpenRouter · 온라인');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `Boolean(document.querySelector('#openrouter-api-key:not(:disabled)'))`,
+        ),
+      'OpenRouter setting controls',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('#openrouter-api-key').focus()`,
+    );
+    window.webContents.insertText('test-openrouter-ui-key');
+    await click('키 저장');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('#openrouter-api-key').value === '' && [...document.querySelectorAll('button')].some((button) => button.textContent === '연결 확인' && !button.disabled)`,
+        ),
+      'encrypted key saved and input cleared',
+    );
+    const publicSettings = await window.webContents.executeJavaScript(
+      'window.electronAPI.getSettingInfo()',
+    );
+    assert.equal(publicSettings.hasOpenRouterKey, true);
+    assert.equal(JSON.stringify(publicSettings).includes('test-openrouter-ui-key'), false);
+    await click('연결 확인');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('연결 확인 완료')`,
+        ),
+      'OpenRouter key checked',
+    );
+    assert.deepEqual(
+      await window.webContents.executeJavaScript(
+        `['추천 모델 (유료 · 성능)', '추천 모델 (유료 · 가성비)'].map((title) => [...document.querySelectorAll('h4')].find((heading) => heading.textContent === title)?.parentElement.querySelectorAll('button[aria-label]').length)`,
+      ),
+      [3, 3],
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('button[aria-label="upstage/solar-mini4 선택"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('button[aria-label="upstage/solar-mini4 선택"]')?.textContent.trim() === '선택됨' && !document.querySelector('input[role="combobox"]').disabled`,
+        ),
+      'paid recommendation selected',
+    );
+    assert.equal((await service.getSettingInfo()).openRouterModel, 'upstage/solar-mini4');
+    assert.equal(remoteRequests, 0);
+    console.log(
+      'PASS: both paid recommendation groups show three models and selection persists without generation',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('button[aria-label="Test Free Model 선택"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('button[aria-label="Test Free Model 선택"]')?.textContent.trim() === '선택됨' && ![...document.querySelectorAll('button[aria-haspopup="listbox"]')].some((button) => button.disabled)`,
+        ),
+      'free recommendation selected',
+    );
+    assert.equal((await service.getSettingInfo()).openRouterModel, 'test/free-model:free');
+    console.log('PASS: free recommendation selects and persists the model');
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent === 'AI 모델 설정');
+      const label = [...section.querySelectorAll('label')].find((element) => element.textContent === 'LLM 모델');
+      const input = document.getElementById(label.htmlFor);
+      input.focus();
+      input.click();
+    })()`);
+    window.webContents.insertText('test/remote');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelectorAll('[role="listbox"][aria-label="LLM 모델"] [role="option"]').length === 1 && document.querySelector('[role="option"]')?.textContent.includes('Test Remote Model')`,
+        ),
+      'model ID autocomplete filtering',
+    );
+    assert.equal((await service.getSettingInfo()).openRouterModel, 'test/free-model:free');
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `document.querySelectorAll('input[type="search"]').length`,
+      ),
+      0,
+    );
+    await click('Test Remote Model');
+    await until(
+      async () => (await service.getSettingInfo()).openRouterModel === 'test/remote-model',
+      'OpenRouter model saved',
+    );
+    const encrypted = await fs.readFile(path.join(root, 'app-data', 'openrouter-key.enc'));
+    assert.equal(encrypted.includes('test-openrouter-ui-key'), false);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('input[role="combobox"]')?.value === 'Test Remote Model' && !document.querySelector('input[role="combobox"]').disabled && document.body.textContent.includes('100만 토큰당 입력 $1.00')`,
+        ),
+      'selected model and pricing rendered',
+    );
+    if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
+      await fs.mkdir(process.env.GROOMI_UI_SCREENSHOT_DIR, { recursive: true });
+      await fs.writeFile(
+        path.join(process.env.GROOMI_UI_SCREENSHOT_DIR, 'openrouter-settings.png'),
+        (await window.webContents.capturePage()).toPNG(),
+      );
+    }
+    const backup = await service.backupWorkspace(root);
+    await assert.rejects(fs.access(path.join(backup.path, 'openrouter-key.enc')));
+    console.log(
+      'PASS: OpenRouter selection, encrypted key IPC, connection check and model selection',
+    );
+    await click('첫 회차');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '회차 정보 생성' && !button.disabled)`,
+        ),
+      'remote generation ready with Ollama stopped',
+    );
+    await click('저장');
+    await until(
+      () => window.webContents.executeJavaScript(`document.body.textContent.includes('저장완료')`),
+      'save without generation',
+    );
+    assert.equal(remoteRequests, 0);
+    await edit('OpenRouter 생성 직전 입력');
+    await click('회차 정보 생성');
+    await until(
+      async () =>
+        (await service.getDocument(first.path)).document.storyMemory?.synopsis ===
+        '원격 생성 줄거리',
+      'remote story memory persisted',
+    );
+    assert.equal(remoteRequests, 1);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '댓글 생성' && !button.disabled)`,
+        ),
+      'background generation complete',
+    );
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', (_event, params) => service.generateComments(params));
+    responseMode = 'comments';
+    await click('5개');
+    await click('댓글 생성');
+    await until(
+      async () => (await service.listGeneratedComments(first.path)).length === 5,
+      'remote comments persisted',
+    );
+    assert.equal(remoteRequests, 2);
+    console.log(
+      'PASS: separate save and remote generation with auto-save; comments work without Ollama',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('a[href="/setting"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `Boolean(document.querySelector('#openrouter-api-key'))`,
+        ),
+      'return to AI settings',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent === 'AI 모델 설정');
+      section.querySelector('button[aria-expanded]').click();
+    })()`);
+    await click('키 삭제');
+    await until(
+      () => window.webContents.executeJavaScript(`document.body.textContent.includes('키 미등록')`),
+      'key removed',
+    );
+    await assert.rejects(fs.access(path.join(root, 'app-data', 'openrouter-key.enc')));
+    await service.updateAiSettings('ollama', 'test/remote-model');
+    console.log('PASS: OpenRouter key deletion');
 
     await window.webContents.executeJavaScript(`(() => {
       const section = [...document.querySelectorAll('section')].find((element) => element.querySelector('h3')?.textContent.includes('댓글 스타일 예시'));

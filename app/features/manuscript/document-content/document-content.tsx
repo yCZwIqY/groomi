@@ -1,6 +1,7 @@
 import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
 import DnEditor from '~/components/editor/dn-editor';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { LuMaximize2, LuMinimize2, LuSave } from 'react-icons/lu';
 import { useDocumentSave } from './hooks/use-document-save';
 import { getAiStatus, useAiStatus } from '~/hooks/use-ai-status';
 import { Link } from 'react-router';
@@ -47,7 +48,18 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     setManuscriptStatus,
     resetContent,
   } = useDocumentContent();
-  const [showType, setShowType] = useState<ShowType>('SPLIT');
+  const [showType, setShowType] = useState<ShowType>('MANUSCRIPT');
+  const [focusMode, setFocusMode] = useState(false);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) setFocusMode(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, [focusMode]);
+
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
   const [preparingStoryMemory, setPreparingStoryMemory] = useState(false);
   const preparingStoryMemoryRef = useRef(false);
@@ -172,79 +184,71 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
 
   return (
     <div className={'relative'}>
-      <div className={'ui-card h-[90dvh] min-w-0 p-4 my-4 flex flex-col overflow-hidden'}>
-        <div className={'flex items-center justify-between gap-4'}>
-          <div className={'w-[300px]'}>
+      <div
+        className={
+          focusMode
+            ? 'fixed inset-3 z-40 flex min-w-0 flex-col rounded-2x bg-stone-50 p-4 shadow-2xl'
+            : 'my-4 flex h-[85dvh] min-h-[560px] min-w-0 flex-col overflow-hidden '
+        }
+      >
+        <div className={'flex flex-wrap items-center justify-between gap-3'}>
+          <div className={'w-[280px] max-w-full'}>
             <DnSwitch
               options={ShowTypeOptions}
               value={showType}
               setValue={setShowType}
             />
           </div>
-          <StoryMemoryActionButton
-            onClick={handleOpenStoryMemory}
-            disabled={isBusy}
-            title={isBusy ? '이 회차의 생성 작업이 끝난 뒤 확인할 수 있습니다.' : undefined}
-          >
-            사건·인물·떡밥 보기
-          </StoryMemoryActionButton>
-          {workspaceData.document?.storyMemory?.stale && (
-            <span className={'text-xs text-amber-700'}>원고 또는 앞 회차 변경 · 재생성 필요</span>
-          )}
-        </div>
-        <div className={'flex flex-1 gap-4 p-4 overflow-hidden'}>
-          {showType !== 'MANUSCRIPT' && (
-            <>
-              <div className={'flex-1 flex-col flex gap-2'}>
-                <div className={'grid grid-cols-2 gap-3'}>
-                  <div className={'rounded-lg bg-stone-100 px-4 py-3'}>
-                    <div className={'text-xs text-stone-400 pb-1'}> 공백 포함 </div>
-                    <div className={'text-sm text-stone-700'}>{draftStatus.charsWithSpaces}자</div>
-                  </div>
-                  <div className={'rounded-lg bg-stone-100 px-4 py-3'}>
-                    <div className={'text-xs text-stone-400 pb-1'}> 공백 미포함</div>
-                    <div className={'text-sm text-stone-700'}>
-                      {draftStatus.charsWithoutSpaces}자
-                    </div>
-                  </div>
-                </div>
-                <DnEditor
-                  content={draft}
-                  setContent={(content) => {
-                    clearSaveError();
-                    setDraft(content);
-                  }}
-                  setStatus={setDraftStatus}
-                />
+          <div className={'flex flex-col gap-2 items-end'}>
+            <div className={'flex gap-2 items-center relative'}>
+              <button
+                type='button'
+                onClick={() => setFocusMode(!focusMode)}
+                aria-pressed={focusMode}
+                title='집중 모드 · Esc로 돌아가기'
+                className='flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs text-stone-600 hover:bg-stone-100'
+              >
+                {focusMode ? <LuMinimize2 size={15} /> : <LuMaximize2 size={15} />}
+                {focusMode ? '집중 모드 종료' : '집중 모드'}
+              </button>
+              <div>
+                <StoryMemoryActionButton
+                  onClick={handleOpenStoryMemory}
+                  disabled={isBusy}
+                  title={isBusy ? '이 회차의 생성 작업이 끝난 뒤 확인할 수 있습니다.' : undefined}
+                >
+                  사건·인물·떡밥 보기
+                </StoryMemoryActionButton>
               </div>
-              <div className={'w-px h-full border-r border-neutral-100'} />
-            </>
+            </div>
+            {workspaceData.document?.storyMemory?.stale && (
+              <span className={'text-xs text-amber-700'}>원고 또는 앞 회차 변경 · 재생성 필요</span>
+            )}
+          </div>
+        </div>
+        <div className='flex min-h-0 flex-1 gap-4 py-4'>
+          {showType !== 'MANUSCRIPT' && (
+            <DnEditor
+              variant='draft'
+              content={draft}
+              status={draftStatus}
+              setContent={(content) => {
+                clearSaveError();
+                setDraft(content);
+              }}
+              setStatus={setDraftStatus}
+            />
           )}
           {showType !== 'DRAFT' && (
-            <div className={'flex-1 flex-col flex gap-2'}>
-              <div className={'grid grid-cols-2 gap-3'}>
-                <div className={'rounded-lg bg-stone-100 px-4 py-3'}>
-                  <div className={'text-xs text-stone-400 pb-1'}> 공백 포함 </div>
-                  <div className={'text-sm text-stone-700'}>
-                    {manuscriptStatus.charsWithSpaces}자
-                  </div>
-                </div>
-                <div className={'rounded-lg bg-stone-100 px-4 py-3'}>
-                  <div className={'text-xs text-stone-400 pb-1'}> 공백 미포함</div>
-                  <div className={'text-sm text-stone-700'}>
-                    {manuscriptStatus.charsWithoutSpaces}자
-                  </div>
-                </div>
-              </div>
-              <DnEditor
-                content={manuscript}
-                setContent={(content) => {
-                  clearSaveError();
-                  setManuscript(content);
-                }}
-                setStatus={setManuscriptStatus}
-              />
-            </div>
+            <DnEditor
+              content={manuscript}
+              status={manuscriptStatus}
+              setContent={(content) => {
+                clearSaveError();
+                setManuscript(content);
+              }}
+              setStatus={setManuscriptStatus}
+            />
           )}
         </div>
         <div className={'flex max-w-full flex-wrap items-center justify-end gap-2 self-end'}>
@@ -274,6 +278,10 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
             loading={saving}
             onClick={handleSave}
           >
+            <LuSave
+              size={15}
+              aria-hidden='true'
+            />
             저장
           </DnButton>
           <DnButton

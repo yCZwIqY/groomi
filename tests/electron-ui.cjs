@@ -34,6 +34,34 @@ async function click(label) {
   assert.ok(result.clicked, `Missing control ${label}: ${result.body}`);
 }
 
+async function openChapter(label) {
+  await click(label);
+  if (label === '첫 회차' || label === '두 번째 회차') {
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('input')?.value === ${JSON.stringify(label)}`,
+        ),
+      'selected chapter hydration',
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `!!document.querySelector('[aria-label="원고 본문"]')`,
+        ),
+      'manuscript opens by default',
+    );
+    await click('분할보기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelectorAll('[contenteditable="true"]').length === 2`,
+        ),
+      'split editors',
+    );
+  }
+}
+
 async function edit(content, editorIndex = 0) {
   await window.webContents.executeJavaScript(`(() => {
     const editor = document.querySelectorAll('[contenteditable="true"]')[${editorIndex}];
@@ -127,7 +155,7 @@ app
       () => window.webContents.executeJavaScript(`document.body.textContent.includes('첫 회차')`),
       'workspace hydration',
     );
-    await click('첫 회차');
+    await openChapter('첫 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(
@@ -143,6 +171,123 @@ app
       })()`),
       'saved draft and manuscript hydration',
     );
+
+    await window.webContents.executeJavaScript(`(() => {
+      const editor = document.querySelector('[aria-label="원고 본문"]');
+      editor.focus();
+      const selection = window.getSelection();
+      selection.selectAllChildren(editor);
+      selection.collapseToEnd();
+      const panel = editor.closest('section');
+      panel.querySelector('[aria-label="문장부호 · 특수기호"]').click();
+    })()`);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`!!document.querySelector('[aria-label="…… 삽입"]')`),
+      'punctuation menu',
+    );
+    assert.ok(
+      await window.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('[aria-label="문장부호와 특수기호 삽입"]');
+      const bounds = menu.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.top >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight
+        && menu.contains(document.elementFromPoint(bounds.left + 15, bounds.top + 15));
+    })()`),
+      'symbol popup remains visible outside editor clipping',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="…… 삽입"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 본문"]').textContent === '기존에 저장된 원고……'`,
+        ),
+      'punctuation inserts at the caret',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('[aria-label="원고 본문"]').closest('section');
+      panel.querySelector('[aria-label="문장부호 · 특수기호"]').click();
+    })()`);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`!!document.querySelector('[aria-label="※ 삽입"]')`),
+      'special symbol menu',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="※ 삽입"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 본문"]').textContent === '기존에 저장된 원고……※'`,
+        ),
+      'special symbol inserts as text',
+    );
+    for (let index = 0; index < 2; index++) {
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[aria-label="원고 본문"]').closest('section').querySelector('[aria-label="실행 취소 (Ctrl+Z)"]').click()`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 550));
+      if (
+        await window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 본문"]').textContent === '기존에 저장된 원고'`,
+        )
+      )
+        break;
+    }
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[aria-label="원고 본문"]').textContent`,
+      ),
+      '기존에 저장된 원고',
+    );
+    await click('집중 모드');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('집중 모드 종료')`,
+        ),
+      'focus mode',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="원고 본문"]').closest('section').querySelector('[aria-label="문장부호 · 특수기호"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `!!document.querySelector('[aria-label="문장부호와 특수기호 삽입"]')`,
+        ),
+      'focus mode symbol menu',
+    );
+    window.setSize(640, 500);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('[aria-label="문장부호와 특수기호 삽입"]');
+      const bounds = menu.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.top >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight
+        && menu.contains(document.elementFromPoint(bounds.left + 15, bounds.top + 15));
+    })()`),
+      'popup stays inside resized viewport above focus mode',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector('[aria-label="✓ 삽입"]');
+      button.scrollIntoView({ block: 'nearest' });
+      button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    })()`);
+    assert.ok(
+      await window.webContents.executeJavaScript(
+        `!!document.querySelector('[aria-label="문장부호와 특수기호 삽입"]')`,
+      ),
+      'popup interaction is not dismissed as an outside click',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="기호 메뉴 닫기"]').click()`,
+    );
+    window.setSize(1280, 900);
+    await click('집중 모드 종료');
+    console.log('PASS: writing tools insert punctuation and symbols, undo, and toggle focus mode');
 
     await until(
       () =>
@@ -220,7 +365,7 @@ app
       `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
     );
     await edit('이동 직전 입력');
-    await click('두 번째 회차');
+    await openChapter('두 번째 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(
@@ -462,7 +607,7 @@ app
     console.log(
       'PASS: OpenRouter selection, encrypted key IPC, connection check and model selection',
     );
-    await click('첫 회차');
+    await openChapter('첫 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(
@@ -621,7 +766,7 @@ app
     assert.equal(styleExample.ageGroup, 30);
     console.log('PASS: style example chips save reading experience, interest, reaction and age');
 
-    await click('첫 회차');
+    await openChapter('첫 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(
@@ -760,7 +905,7 @@ app
       ),
       '회차 정보 저장 후에도 유지할 원고',
     );
-    await click('두 번째 회차');
+    await openChapter('두 번째 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(
@@ -773,7 +918,7 @@ app
         '회차 정보 저장 후에도 유지할 원고',
       ),
     );
-    await click('첫 회차');
+    await openChapter('첫 회차');
     await until(
       () =>
         window.webContents.executeJavaScript(

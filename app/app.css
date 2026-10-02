@@ -317,3 +317,76 @@ body {
     box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
   }
 }
+
+/* Writing surfaces keep prose readable without changing the saved document. */
+.manuscript-page {
+  display: flex;
+  flex-direction: column;
+}
+.manuscript-page .ProseMirror {
+  flex: 1;
+  min-height: 320px;
+  outline: none;
+  color: #292524;
+  overflow-wrap: anywhere;
+  caret-color: #2563eb;
+}
+.manuscript-page .ProseMirror p {
+  margin: 0 0 0.85em;
+}
+.manuscript-page .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #a8a29e;
+  pointer-events: none;
+}
+.manuscript-page .ProseMirror ul,
+.manuscript-page .ProseMirror ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.85em;
+}
+.manuscript-page .ProseMirror ul {
+  list-style-type: disc;
+}
+.manuscript-page .ProseMirror ol {
+  list-style-type: decimal;
+}
+.manuscript-page .ProseMirror blockquote {
+  border-left: 3px solid #d6d3d1;
+  padding-left: 1em;
+  color: #78716c;
+}
+.manuscript-page .ProseMirror h1,
+.manuscript-page .ProseMirror h2,
+.manuscript-page .ProseMirror h3 {
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+}
+.manuscript-page .ProseMirror h1 {
+  font-size: 1.6em;
+}
+.manuscript-page .ProseMirror h2 {
+  font-size: 1.35em;
+}
+.manuscript-page .ProseMirror h3 {
+  font-size: 1.15em;
+}
+.manuscript-page .ProseMirror hr {
+  border-top: 1px solid #d6d3d1;
+  margin: 2em 0;
+}
+.manuscript-page .ProseMirror a {
+  color: #244faf;
+  text-decoration: underline;
+}
+.manuscript-page .ProseMirror pre {
+  white-space: pre-wrap;
+  background: #f5f5f4;
+  padding: 1em;
+  border-radius: 8px;
+}
+.manuscript-page .ProseMirror code {
+  font-family: monospace;
+  background: #f5f5f4;
+}

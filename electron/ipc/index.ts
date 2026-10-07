@@ -1,3 +1,4 @@
+import { registerReviewIpcHandlers } from './review.js';
 import { registerDirectoryIpcHandlers } from './directory.js';
 import { registerSettingIpcHandlers } from './setting.js';
 import { registerWorkspaceIpcHandlers } from './workspace.js';
@@ -16,6 +17,7 @@ export function registerIpcHandlers(app: App) {
   registerDocumentIpcHandlers(workspaceService);
   registerSettingIpcHandlers(workspaceService);
   registerStoryMemoryIpcHandlers(workspaceService);
+  registerReviewIpcHandlers(workspaceService);
   registerCommentIpcHandlers(workspaceService);
   registerOllamaIpcHandlers();
 }

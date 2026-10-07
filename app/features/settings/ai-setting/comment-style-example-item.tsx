@@ -1,3 +1,4 @@
+import DnCheckbox from '~/components/common/dn-checkbox';
 import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
 import { StoryMemoryCard } from '~/features/manuscript/story-memory/story-memory-card';
 import { StoryMemoryTag } from '~/features/manuscript/story-memory/story-memory-tag';
@@ -6,6 +7,8 @@ interface Props {
   example: CommentExample;
   removing: boolean;
   onRemove: () => void;
+  selected: boolean;
+  onSelect: (selected: boolean) => void;
 }
 
 const experienceLabels: Record<number, string> = {
@@ -17,13 +20,19 @@ const experienceLabels: Record<number, string> = {
   100: '창작 경험',
 };
 
-const CommentStyleExampleItem = ({ example, removing, onRemove }: Props) => (
+const CommentStyleExampleItem = ({ example, removing, onRemove, selected, onSelect }: Props) => (
   <StoryMemoryCard
     as={'article'}
     className={'flex shrink-0 flex-col gap-3'}
   >
     <div className={'flex items-start justify-between gap-3'}>
-      <div className={'flex flex-wrap gap-1.5'}>
+      <DnCheckbox
+        aria-label={'댓글 스타일 예시 선택: ' + example.content}
+        checked={selected}
+        disabled={removing}
+        onChange={(event) => onSelect(event.target.checked)}
+      />
+      <div className={'flex flex-1 flex-wrap gap-1.5'}>
         <StoryMemoryTag tone={'primary'}>
           {example.expertiseLevel === null
             ? '독서 경험 미지정'
@@ -44,6 +53,7 @@ const CommentStyleExampleItem = ({ example, removing, onRemove }: Props) => (
         </StoryMemoryTag>
       </div>
       <ConfirmModalWrapper
+        disabled={removing}
         triggerLabel={'댓글 스타일 예시 삭제'}
         confirmVariant={'red'}
         confirmLabel={'삭제'}

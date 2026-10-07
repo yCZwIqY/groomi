@@ -481,7 +481,7 @@ ${previousChapterScriptText}
 GROUP_CONTEXT (n-1화까지 주요 사건, 중요도별):
 ${majorEventsText}
 
-GROUP_CONTEXT (미해결 떡밥):
+GROUP_CONTEXT (미해결 복선):
 ${plotHooks.length ? plotHooks.map((hook) => `- (${hook.plantedAt}) ${hook.description}`).join('\n') : '없음'}
 
 GROUP_CONTEXT (n-1화까지 등장인물 정리):

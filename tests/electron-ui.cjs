@@ -676,6 +676,104 @@ app
     console.log(
       'PASS: separate save and remote generation with auto-save; comments work without Ollama',
     );
+    let reviewCalls = 0;
+    let releaseReview;
+    const reviewGate = new Promise((resolve) => {
+      releaseReview = resolve;
+    });
+    let concurrentComments = 0;
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', async () => {
+      concurrentComments++;
+      return [];
+    });
+    ipcMain.removeHandler('review:generate');
+    secureHandle('review:generate', async (_event, targetPath) => {
+      assert.equal(targetPath, first.path);
+      reviewCalls++;
+      if (reviewCalls === 1) await reviewGate;
+      return {
+        criteria: Object.fromEntries(
+          ['contextConsistency', 'pacing', 'readability', 'characterConsistency', 'hook'].map(
+            (key) => [key, { score: 8, comment: '"기존에 저장된 원고"의 흐름이 자연스럽다.' }],
+          ),
+        ),
+        overallComment: '리뷰 총평 ' + reviewCalls,
+      };
+    });
+    await click('원고 리뷰 생성');
+    await until(() => reviewCalls === 1, 'review in progress');
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === '저장').disabled`,
+      ),
+      true,
+    );
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === '댓글 생성')?.disabled`,
+      ),
+      false,
+    );
+    await click('댓글 생성');
+    await until(() => concurrentComments === 1, 'comments allowed during review');
+    releaseReview();
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '리뷰 보기' && !button.disabled)`,
+        ),
+      'review available',
+    );
+    await click('리뷰 보기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 리뷰"]')?.textContent.includes('리뷰 총평 1')`,
+        ),
+      'review modal opens',
+    );
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `document.querySelectorAll('[aria-label="원고 리뷰"] h3').length`,
+      ),
+      6,
+    );
+    await click('다시 생성');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 리뷰"]')?.textContent.includes('리뷰 총평 2')`,
+        ),
+      'review regenerated',
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `Number(getComputedStyle(document.querySelector('.modal-overlay--open')).opacity) >= 0.99`,
+        ),
+      'review modal animation complete',
+    );
+    await click('닫기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(`!document.querySelector('[aria-label="원고 리뷰"]')`),
+      'review closes',
+    );
+    await click('리뷰 보기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="원고 리뷰"]')?.textContent.includes('리뷰 총평 2')`,
+        ),
+      'review reopens',
+    );
+    await click('닫기');
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', (_event, params) => service.generateComments(params));
+    console.log(
+      'PASS: comments during review; review generation, five criteria, regeneration and reopening',
+    );
     await window.webContents.executeJavaScript(
       `document.querySelector('a[href="/setting"]').click()`,
     );
@@ -765,6 +863,185 @@ app
     assert.equal(styleExample.tone, '의문');
     assert.equal(styleExample.ageGroup, 30);
     console.log('PASS: style example chips save reading experience, interest, reaction and age');
+    // Seed more than one page in the disposable workspace.
+    for (let index = 0; index < 12; index++) {
+      await service.addCommentExample({ content: '페이지 예시 ' + index });
+      const removed = await service.createDocument(workspace, '휴지통 테스트 ' + index);
+      await service.removeDocument(removed.path);
+    }
+    window.webContents.reload();
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('section')].some((section) => section.querySelector('h3')?.textContent === '댓글 스타일 예시')`,
+        ),
+      'settings reloaded',
+    );
+    const sectionAction = async (title, script) =>
+      window.webContents.executeJavaScript(
+        `(() => { const section = [...document.querySelectorAll('section')].find((section) => section.querySelector('h3')?.textContent === ${JSON.stringify(title)}); ${script} })()`,
+      );
+    for (const title of ['댓글 스타일 예시', '휴지통']) {
+      await sectionAction(title, 'section.querySelector("button[aria-expanded=false]")?.click();');
+      const checkboxPrefix = title === '휴지통' ? '휴지통 항목 선택:' : '댓글 스타일 예시 선택:';
+      await until(
+        () =>
+          sectionAction(
+            title,
+            `return section.querySelectorAll('input[aria-label^="${checkboxPrefix}"]').length === 10;`,
+          ),
+        title + ' ten items',
+      );
+      await sectionAction(
+        title,
+        `section.querySelector('input[aria-label$="현재 페이지 선택"]').click();`,
+      );
+      await sectionAction(
+        title,
+        `[...section.querySelectorAll('nav button')].find((button) => button.textContent.trim() === '다음').click();`,
+      );
+      await until(
+        () =>
+          sectionAction(
+            title,
+            `return section.querySelector('nav').textContent.includes('2/2페이지');`,
+          ),
+        title + ' next page',
+      );
+      await sectionAction(
+        title,
+        `section.querySelector('input[aria-label^="${checkboxPrefix}"]').click();`,
+      );
+      await until(
+        () => sectionAction(title, `return section.textContent.includes('11개 선택됨');`),
+        title + ' cross-page selection',
+      );
+      await sectionAction(
+        title,
+        `section.querySelector('button[aria-label="${title === '휴지통' ? '휴지통 항목' : title} 선택 삭제"]').click();`,
+      );
+      await until(
+        () =>
+          window.webContents.executeJavaScript(
+            `document.querySelector('[role="dialog"]')?.textContent.includes('11개');`,
+          ),
+        'batch confirmation',
+      );
+      // Cancelling must preserve both data and selection.
+      await window.webContents.executeJavaScript(
+        `[...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent.trim() === '닫기').click();`,
+      );
+      await until(
+        () => window.webContents.executeJavaScript(`!document.querySelector('[role="dialog"]');`),
+        'cancelled',
+      );
+      assert.ok(await sectionAction(title, `return section.textContent.includes('11개 선택됨');`));
+      await sectionAction(
+        title,
+        `section.querySelector('button[aria-label="${title === '휴지통' ? '휴지통 항목' : title} 선택 삭제"]').click();`,
+      );
+      await until(
+        () => window.webContents.executeJavaScript(`!!document.querySelector('[role="dialog"]');`),
+        'confirm again',
+      );
+      await window.webContents.executeJavaScript(
+        `[...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent.trim() === '${title === '휴지통' ? '영구 삭제' : '삭제'}').click();`,
+      );
+      await until(
+        () =>
+          sectionAction(
+            title,
+            `return section.querySelector('nav')?.textContent.includes('1/1페이지') && section.textContent.includes('0개 선택됨');`,
+          ),
+        title + ' page clamped after delete',
+      );
+    }
+    assert.equal((await service.getTrashItems()).length, 1);
+    // Selecting both a group and a child must restore the whole deletion batch.
+    const restoreGroup = await service.createWorkspace(path.join(workspace, '일괄 복원 그룹'));
+    const restoreChild = await service.createDocument(restoreGroup.path, '함께 복원 문서');
+    const restoreSibling = await service.createDocument(restoreGroup.path, '그룹으로 복원 문서');
+    const keepDeleted = await service.createDocument(restoreGroup.path, '별도로 삭제 문서');
+    await service.removeDocument(keepDeleted.path);
+    await service.removeWorkspace(restoreGroup.path);
+    window.webContents.reload();
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `[...document.querySelectorAll('section')].some((section) => section.querySelector('h3')?.textContent === '휴지통')`,
+        ),
+      'trash reloaded for restore',
+    );
+    await sectionAction('휴지통', 'section.querySelector("button[aria-expanded=false]")?.click();');
+    await until(
+      () =>
+        sectionAction(
+          '휴지통',
+          `return !!section.querySelector('input[aria-label="휴지통 항목 선택: 일괄 복원 그룹"]');`,
+        ),
+      'restore group loaded',
+    );
+    assert.equal(
+      await sectionAction(
+        '휴지통',
+        `return section.querySelector('button[aria-label="휴지통 항목 선택 복원"]').disabled;`,
+      ),
+      true,
+    );
+    for (const name of ['일괄 복원 그룹', '함께 복원 문서']) {
+      await sectionAction(
+        '휴지통',
+        `section.querySelector('input[aria-label="휴지통 항목 선택: ${name}"]').click();`,
+      );
+    }
+    await sectionAction(
+      '휴지통',
+      `section.querySelector('button[aria-label="휴지통 항목 선택 복원"]').click();`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[role="dialog"]')?.textContent.includes('2개');`,
+        ),
+      'restore confirmation',
+    );
+    await window.webContents.executeJavaScript(
+      `[...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent.trim() === '닫기').click();`,
+    );
+    await until(
+      () => window.webContents.executeJavaScript(`!document.querySelector('[role="dialog"]');`),
+      'restore cancelled',
+    );
+    assert.ok((await service.getTrashItems()).some((item) => item.id === restoreChild.id));
+    await sectionAction(
+      '휴지통',
+      `section.querySelector('button[aria-label="휴지통 항목 선택 복원"]').click();`,
+    );
+    await until(
+      () => window.webContents.executeJavaScript(`!!document.querySelector('[role="dialog"]');`),
+      'restore confirmation reopened',
+    );
+    await window.webContents.executeJavaScript(
+      `[...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent.trim() === '복원').click();`,
+    );
+    await until(
+      async () =>
+        !(await service.getTrashItems()).some(
+          (item) =>
+            item.id === restoreGroup.id ||
+            item.id === restoreChild.id ||
+            item.id === restoreSibling.id,
+        ),
+      'batch group restored',
+    );
+    assert.ok((await service.getTrashItems()).some((item) => item.id === keepDeleted.id));
+    await until(
+      () => sectionAction('휴지통', `return section.textContent.includes('0개 선택됨');`),
+      'restored selection cleared',
+    );
+    console.log(
+      'PASS: settings pagination, cross-page selection, cancel, batch deletion and group restore',
+    );
 
     await openChapter('첫 회차');
     await until(
@@ -868,7 +1145,7 @@ app
     console.log('PASS: edits during an in-flight save are persisted');
 
     await edit('회차 정보 저장 후에도 유지할 원고');
-    await click('사건·인물·떡밥 보기');
+    await click('회차 정보 보기');
     await until(
       () =>
         window.webContents.executeJavaScript(

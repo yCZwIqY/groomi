@@ -1,3 +1,7 @@
+import DnCheckbox from '~/components/common/dn-checkbox';
+import ListPagination from '~/components/common/list-pagination';
+import ListSelectionToolbar from '~/components/common/list-selection-toolbar';
+import { usePaginatedSelection } from '~/hooks/use-paginated-selection';
 import SettingsSection from '~/components/common/settings-section';
 import { formatDate } from '../../../../utils/date-utils';
 import { AiOutlineFile, AiOutlineFolder } from 'react-icons/ai';
@@ -7,9 +11,22 @@ interface Props {
   items: WorkspaceNode[];
   onRestore: (item: WorkspaceNode) => void;
   onDelete: (item: WorkspaceNode) => void;
+  onDeleteSelected: (items: WorkspaceNode[]) => void;
+  onRestoreSelected: (items: WorkspaceNode[]) => void;
+  busy: boolean;
 }
 
-const TrashList = ({ items, onRestore, onDelete }: Props) => {
+const getTrashId = (item: WorkspaceNode) => item.id ?? item.path;
+
+const TrashList = ({
+  items,
+  onRestore,
+  onDelete,
+  onDeleteSelected,
+  onRestoreSelected,
+  busy,
+}: Props) => {
+  const selection = usePaginatedSelection(items, getTrashId);
   return (
     <SettingsSection
       collapsible
@@ -17,15 +34,37 @@ const TrashList = ({ items, onRestore, onDelete }: Props) => {
       description={'삭제한 항목을 복원하거나 영구 삭제합니다.'}
       count={items.length}
     >
+      <ListSelectionToolbar
+        label='휴지통 항목'
+        count={items.length}
+        pageCount={selection.visibleItems.length}
+        pageSelectedCount={selection.visibleSelectedCount}
+        selectedCount={selection.selectedCount}
+        busy={busy}
+        onSelectPage={selection.selectPage}
+        onSelectAll={selection.selectAll}
+        onClear={selection.clearSelection}
+        onDelete={() => onDeleteSelected(selection.selectedItems)}
+        onRestore={() => onRestoreSelected(selection.selectedItems)}
+        permanent
+      />
       <div className={'divide-y divide-neutral-100'}>
         {items.length === 0 ? (
           <div className={'px-4 py-6 text-sm text-neutral-400'}>휴지통이 비어 있습니다.</div>
         ) : (
-          items.map((item) => (
+          selection.visibleItems.map((item) => (
             <div
-              className={'grid grid-cols-[28px_1fr_180px_120px] items-center gap-3 px-4 py-3'}
+              className={
+                'grid grid-cols-[20px_20px_minmax(0,1fr)] sm:grid-cols-[20px_20px_minmax(0,1fr)_150px_120px] items-center gap-3 px-4 py-3'
+              }
               key={item.id ?? item.path}
             >
+              <DnCheckbox
+                aria-label={'휴지통 항목 선택: ' + (item.document?.title || item.name)}
+                checked={selection.selectedIds.has(getTrashId(item))}
+                disabled={busy}
+                onChange={(event) => selection.select(getTrashId(item), event.target.checked)}
+              />
               <div>
                 {item.type === 'document' ? (
                   <AiOutlineFile color={'var(--color-gray-400)'} />
@@ -39,11 +78,16 @@ const TrashList = ({ items, onRestore, onDelete }: Props) => {
                 </div>
                 <div className={'truncate text-xs text-neutral-400'}>{item.path.split('.')[0]}</div>
               </div>
-              <div className={'text-right text-xs text-neutral-400'}>
+              <div
+                className={'col-start-3 text-xs text-neutral-400 sm:col-start-auto sm:text-right'}
+              >
                 {formatDate(new Date(item.deletedAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
               </div>
-              <div className={'flex justify-end items-center gap-2'}>
+              <div
+                className={'col-start-3 flex items-center gap-2 sm:col-start-auto sm:justify-end'}
+              >
                 <ConfirmModalWrapper
+                  disabled={busy}
                   description={
                     <div className={'py-10 text-center'}>
                       <span className={'font-bold text-primary-500'}>
@@ -56,15 +100,11 @@ const TrashList = ({ items, onRestore, onDelete }: Props) => {
                   }
                   onConfirm={() => onRestore(item)}
                 >
-                  <button
-                    className={'text-xs hover:underline block'}
-                    type={'button'}
-                  >
-                    복원
-                  </button>
+                  <span className={'text-xs hover:underline block'}>복원</span>
                 </ConfirmModalWrapper>
                 <div className={'border-r w-px h-4 border-neutral-500'} />
                 <ConfirmModalWrapper
+                  disabled={busy}
                   confirmLabel={'영구 삭제'}
                   confirmVariant={'red'}
                   description={
@@ -82,18 +122,21 @@ const TrashList = ({ items, onRestore, onDelete }: Props) => {
                   }
                   onConfirm={() => onDelete(item)}
                 >
-                  <button
-                    className={'text-xs text-red-600 hover:underline block'}
-                    type={'button'}
-                  >
-                    영구 삭제
-                  </button>
+                  <span className={'text-xs text-red-600 hover:underline block'}>영구 삭제</span>
                 </ConfirmModalWrapper>
               </div>
             </div>
           ))
         )}
       </div>
+      <ListPagination
+        label='휴지통'
+        count={items.length}
+        page={selection.page}
+        pageCount={selection.pageCount}
+        onChange={selection.setPage}
+        disabled={busy}
+      />
     </SettingsSection>
   );
 };

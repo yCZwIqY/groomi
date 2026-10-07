@@ -17,7 +17,7 @@ const TABS: Option<TabKey>[] = [
   { value: 'synopsis', label: '현재까지 줄거리' },
   { value: 'events', label: '사건' },
   { value: 'characters', label: '등장인물' },
-  { value: 'plotHooks', label: '떡밥' },
+  { value: 'plotHooks', label: '복선' },
 ];
 
 const IMPORTANCE_LEVELS = ['상', '중', '하'] as const;
@@ -100,9 +100,9 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
       count: displayedMemory?.characters.length ?? 0,
     },
     plotHooks: {
-      title: '떡밥',
+      title: '복선',
       description:
-        '그룹의 떡밥을 생성·해결 회차와 함께 관리합니다. 댓글은 해당 회차 시점의 미해결 떡밥만 참고합니다.',
+        '그룹의 복선을 생성·해결 회차와 함께 관리합니다. 댓글은 해당 회차 시점의 미해결 복선만 참고합니다.',
       count: displayedMemory?.plotHooks.length ?? 0,
     },
   };
@@ -111,7 +111,7 @@ const WorkspaceTabs = ({ tree, groupPath }: Props) => {
     synopsis: '아직 생성된 줄거리가 없습니다.',
     events: '아직 생성된 사건이 없습니다.',
     characters: '아직 등록된 인물이 없습니다.',
-    plotHooks: '등록된 떡밥이 없습니다.',
+    plotHooks: '등록된 복선이 없습니다.',
   };
   const isEmpty =
     activeTab !== 'list' &&

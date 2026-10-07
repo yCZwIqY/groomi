@@ -121,3 +121,15 @@ export type StoredDocumentMetaInput = Partial<WorkspaceStoreDocument> &
     draft?: StoredScriptContent;
     manuscript?: StoredScriptContent;
   };
+
+export type ManuscriptReviewCriterionKey =
+  | 'contextConsistency'
+  | 'pacing'
+  | 'readability'
+  | 'characterConsistency'
+  | 'hook';
+export type ManuscriptReviewCriterion = { score: number; comment: string };
+export type ManuscriptReview = {
+  criteria: Record<ManuscriptReviewCriterionKey, ManuscriptReviewCriterion>;
+  overallComment: string;
+};

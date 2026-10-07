@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type BackgroundTaskType = 'story-memory' | 'comments';
+export type BackgroundTaskType = 'story-memory' | 'comments' | 'review';
 export type BackgroundTaskStatus = 'running' | 'done' | 'error';
 
 export type BackgroundTask = {
@@ -18,6 +18,8 @@ const MAX_TASKS = 30;
 
 interface BackgroundTaskState {
   tasks: BackgroundTask[];
+  pendingReview: Record<string, ManuscriptReview>;
+  clearPendingReview: (documentPath: string) => void;
   pendingStoryMemory: Record<string, StoryMemoryDraft>;
   startTask: (input: {
     documentPath: string;
@@ -29,6 +31,7 @@ interface BackgroundTaskState {
     status: 'done' | 'error',
     storyMemoryDraft?: StoryMemoryDraft,
     errorMessage?: string,
+    review?: ManuscriptReview,
   ) => void;
   clearPendingStoryMemory: (documentPath: string) => void;
   clearFinishedTasks: () => void;
@@ -37,6 +40,13 @@ interface BackgroundTaskState {
 export const useBackgroundTasks = create<BackgroundTaskState>((set, get) => ({
   tasks: [],
   pendingStoryMemory: {},
+  pendingReview: {},
+  clearPendingReview: (documentPath) =>
+    set((state) => {
+      const next = { ...state.pendingReview };
+      delete next[documentPath];
+      return { pendingReview: next };
+    }),
 
   startTask: ({ documentPath, documentTitle, type }) => {
     const id = crypto.randomUUID();
@@ -56,7 +66,7 @@ export const useBackgroundTasks = create<BackgroundTaskState>((set, get) => ({
     return id;
   },
 
-  finishTask: (id, status, storyMemoryDraft, errorMessage) => {
+  finishTask: (id, status, storyMemoryDraft, errorMessage, review) => {
     const task = get().tasks.find((candidate) => candidate.id === id);
 
     set((state) => ({
@@ -71,6 +81,10 @@ export const useBackgroundTasks = create<BackgroundTaskState>((set, get) => ({
             }
           : candidate,
       ),
+      pendingReview:
+        task && status === 'done' && task.type === 'review' && review
+          ? { ...state.pendingReview, [task.documentPath]: review }
+          : state.pendingReview,
       pendingStoryMemory:
         task && status === 'done' && task.type === 'story-memory' && storyMemoryDraft
           ? { ...state.pendingStoryMemory, [task.documentPath]: storyMemoryDraft }

@@ -19,7 +19,7 @@ export async function listCommentExamples() {
   return requireElectronApi().listCommentExamples();
 }
 
-export async function removeCommentExample(id: string) {
+export async function removeCommentExample(id: string | string[]) {
   return requireElectronApi().removeCommentExample(id);
 }
 

@@ -1,3 +1,4 @@
+import { createReviewActions } from './review/review-actions.js';
 import { createDocumentActions } from './document-actions.js';
 import { createFileActions } from './file-actions.js';
 import { createSettingActions } from './setting-actions.js';
@@ -22,7 +23,9 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
   const commentExampleActions = createCommentExampleActions(context);
   const commentStoreActions = createCommentStoreActions(context);
 
+  const reviewActions = createReviewActions(context);
   const service = {
+    generateManuscriptReview: reviewActions.generateManuscriptReview,
     ...createWorkspaceBackupActions(context),
     recoverDocument: documentActions.recoverDocument,
     assertInsideWorkspace: context.assertInsideWorkspace,
@@ -75,7 +78,12 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
     removeGeneratedComment: commentStoreActions.removeGeneratedComment,
   };
   // Inference only reads snapshots and must not block writing a manuscript.
-  const concurrent = new Set(['generateStoryMemory', 'generateComments', 'toFileSystemPath']);
+  const concurrent = new Set([
+    'generateManuscriptReview',
+    'generateStoryMemory',
+    'generateComments',
+    'toFileSystemPath',
+  ]);
   return Object.fromEntries(
     Object.entries(service).map(([name, action]) => [
       name,

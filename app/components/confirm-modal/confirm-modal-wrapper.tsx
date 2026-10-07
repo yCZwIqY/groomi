@@ -1,3 +1,4 @@
+import ModalFrame from '~/components/common/modal/modal-frame';
 import { useModal } from '~/hooks/use-modal';
 import type { ReactNode } from 'react';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -21,29 +22,36 @@ const ConfirmModalWrapper = ({
   triggerLabel,
   disabled = false,
 }: Props) => {
-  const { portal, isOpen, setIsOpen } = useModal({
+  const { portal, setIsOpen } = useModal({
     content: (
-      <div className={'ui-modal w-[320px] flex flex-col gap-2'}>
-        <div className={'text-lg font-bold text-center'}>확인</div>
-        <div className={'py-2'}>{description}</div>
-        <div className={'flex flex-col gap-2 justify-center'}>
-          <DnButton
-            variant={confirmVariant}
-            onClick={() => {
-              onConfirm?.();
-              setIsOpen(false);
-            }}
-          >
-            {confirmLabel ?? '확인'}
-          </DnButton>
-          <DnButton
-            variant={'outlined'}
-            onClick={() => setIsOpen(false)}
-          >
-            닫기
-          </DnButton>
-        </div>
-      </div>
+      <ModalFrame
+        title='확인'
+        label='확인'
+        size='small'
+        onClose={() => setIsOpen(false)}
+        footer={
+          <>
+            {' '}
+            <DnButton
+              variant={'outlined'}
+              onClick={() => setIsOpen(false)}
+            >
+              닫기
+            </DnButton>
+            <DnButton
+              variant={confirmVariant}
+              onClick={() => {
+                onConfirm?.();
+                setIsOpen(false);
+              }}
+            >
+              {confirmLabel ?? '확인'}
+            </DnButton>
+          </>
+        }
+      >
+        <div className='text-sm leading-6 text-stone-600'>{description}</div>
+      </ModalFrame>
     ),
   });
   return (
@@ -60,7 +68,7 @@ const ConfirmModalWrapper = ({
       >
         {children}
       </button>
-      {isOpen && portal}
+      {portal}
     </>
   );
 };

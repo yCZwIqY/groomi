@@ -80,6 +80,18 @@ declare global {
     generatedAt: string;
   };
 
+  type ManuscriptReviewCriterionKey =
+    | 'contextConsistency'
+    | 'pacing'
+    | 'readability'
+    | 'characterConsistency'
+    | 'hook';
+  type ManuscriptReviewCriterion = { score: number; comment: string };
+  type ManuscriptReview = {
+    criteria: Record<ManuscriptReviewCriterionKey, ManuscriptReviewCriterion>;
+    overallComment: string;
+  };
+
   type StoryMemoryDraft = Omit<StoryMemory, 'generatedAt'>;
 
   type WorkspaceNode = {
@@ -276,6 +288,7 @@ declare global {
       removeFile: (filePath: string) => Promise<void>;
       showInFolder: (filePath: string) => Promise<void>;
 
+      generateManuscriptReview: (documentPath: string) => Promise<ManuscriptReview>;
       generateStoryMemory: (documentPath: string) => Promise<StoryMemoryDraft>;
       saveStoryMemory: (documentPath: string, draft: StoryMemoryDraft) => Promise<StoryMemory>;
       getLatestStoryMemory: (groupPath: string) => Promise<StoryMemory | null>;
@@ -286,7 +299,9 @@ declare global {
       addCommentExample: (payload: AddCommentExamplePayload) => Promise<CommentExample>;
       generateComments: (payload: GenerateCommentsPayload) => Promise<GeneratedComment[]>;
       listCommentExamples: () => Promise<CommentExample[]>;
-      removeCommentExample: (id: string) => Promise<{ removed: boolean; id: string }>;
+      removeCommentExample: (
+        id: string | string[],
+      ) => Promise<{ removed: boolean; id: string | string[] }>;
       listGeneratedComments: (documentPath: string) => Promise<GeneratedComment[]>;
       removeGeneratedComment: (
         documentPath: string,

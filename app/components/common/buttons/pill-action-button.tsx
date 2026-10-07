@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from 'react';
 
-export const StoryMemoryActionButton = ({
+export const PillActionButton = ({
   tone = 'primary',
   className = '',
   ...props

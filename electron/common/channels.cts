@@ -49,6 +49,7 @@ const channels = {
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },
+  review: { generate: 'review:generate' },
   storyMemory: {
     generate: 'story-memory:generate',
     save: 'story-memory:save',

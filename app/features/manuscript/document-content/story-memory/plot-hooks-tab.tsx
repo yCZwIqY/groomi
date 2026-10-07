@@ -1,5 +1,5 @@
 import { StoryMemoryHeading } from '~/features/manuscript/story-memory/story-memory-heading';
-import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
+import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import { reviewCardClass, reviewFieldClass } from './review-tab-styles';
 import { AiOutlineDelete, AiOutlinePlus } from 'react-icons/ai';
@@ -17,20 +17,20 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
   <div className={'flex flex-col gap-4'}>
     <div className={'flex items-start justify-between gap-4'}>
       <div>
-        <StoryMemoryHeading title={'떡밥'} />
+        <StoryMemoryHeading title={'복선'} />
         <div className={'mt-1 text-xs leading-5 text-stone-500'}>
-          그룹의 떡밥을 이 회차 시점으로 관리합니다. 이후 회차의 떡밥과 해결 상태는 참고하지
+          그룹의 복선을 이 회차 시점으로 관리합니다. 이후 회차의 복선과 해결 상태는 참고하지
           않습니다.
         </div>
       </div>
-      <StoryMemoryActionButton
+      <PillActionButton
         onClick={onAdd}
         type={'button'}
       >
-        <AiOutlinePlus /> 떡밥 추가
-      </StoryMemoryActionButton>
+        <AiOutlinePlus /> 복선 추가
+      </PillActionButton>
     </div>
-    {plotHooks.length === 0 && <StoryMemoryState>등록된 떡밥이 없습니다.</StoryMemoryState>}
+    {plotHooks.length === 0 && <StoryMemoryState>등록된 복선이 없습니다.</StoryMemoryState>}
     {plotHooks.map((hook, index) => (
       <div
         className={reviewCardClass}
@@ -51,7 +51,7 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
         </div>
         <textarea
           rows={3}
-          aria-label={'떡밥 ' + (index + 1) + ' 내용'}
+          aria-label={'복선 ' + (index + 1) + ' 내용'}
           placeholder={'복선, 약속, 암시 등의 내용을 입력해주세요.'}
           className={reviewFieldClass + ' w-full resize-y'}
           onChange={(changeEvent) => onChange(index, 'description', changeEvent.target.value)}
@@ -68,7 +68,7 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
             value={hook.status ?? 'unresolved'}
           />
         </div>
-        <StoryMemoryActionButton
+        <PillActionButton
           tone={'delete'}
           onClick={() => onRemove(index)}
           type={'button'}
@@ -77,7 +77,7 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
         >
           삭제
           <AiOutlineDelete />
-        </StoryMemoryActionButton>
+        </PillActionButton>
       </div>
     ))}
   </div>

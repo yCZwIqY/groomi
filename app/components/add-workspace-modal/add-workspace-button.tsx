@@ -1,3 +1,4 @@
+import ModalFrame from '~/components/common/modal/modal-frame';
 import { useWorkspacePath } from '~/hooks';
 import { useModal } from '~/hooks/use-modal';
 import DnInput from '~/components/common/inputs/dn-input';
@@ -9,7 +10,7 @@ import { DnChipGroup } from '~/components/common/chip-group';
 import { showToast } from '~/lib/toast-manager';
 import { createDocument } from '~/lib/electron/document-api';
 import { getWorkspaceInfo } from '~/lib/electron/workspace-api';
-import { AiOutlineArrowLeft, AiOutlineClose, AiOutlineFolderOpen } from 'react-icons/ai';
+import { AiOutlineArrowLeft, AiOutlineFolderOpen } from 'react-icons/ai';
 import { CiFileOn } from 'react-icons/ci';
 
 type NodeType = 'workspace' | 'document';
@@ -54,12 +55,12 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
     };
   }, []);
 
-  const { portal, isOpen, setIsOpen } = useModal(
+  const { portal, setIsOpen } = useModal(
     {
       content: (
-        <div className={'ui-modal w-[320px]'}>
-          <div className={'flex items-center justify-between pb-6'}>
-            {nodeType ? (
+        <ModalFrame
+          title={
+            nodeType ? (
               <button
                 type={'button'}
                 onClick={() => setNodeType(null)}
@@ -68,16 +69,31 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                 <AiOutlineArrowLeft /> 뒤로
               </button>
             ) : (
-              <div className={'typo-b2-b text-stone-900'}>새 문서 혹은 그룹 추가</div>
-            )}
-            <button
-              type={'button'}
-              onClick={() => setIsOpen(false)}
-            >
-              <AiOutlineClose />
-            </button>
-          </div>
-
+              '새 문서 혹은 그룹 추가'
+            )
+          }
+          label='새 문서 혹은 그룹 추가'
+          size='small'
+          onClose={() => setIsOpen(false)}
+          footer={
+            nodeType && (
+              <>
+                <DnButton
+                  variant='outlined'
+                  onClick={() => setIsOpen(false)}
+                >
+                  닫기
+                </DnButton>
+                <DnButton
+                  loading={creating}
+                  onClick={() => void handleCreate()}
+                >
+                  생성
+                </DnButton>
+              </>
+            )
+          }
+        >
           {!nodeType && (
             <>
               <div className={'text-stone-500 text-xs pb-4'}>무엇을 추가할까요?</div>
@@ -122,7 +138,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                     value={novelType}
                   />
                   <p className={'mt-2 typo-b6-r text-stone-400'}>
-                    단편은 화차별로 줄거리를 이어가지 않고, 각 회차의 사건·인물·떡밥을 독립적으로
+                    단편은 화차별로 줄거리를 이어가지 않고, 각 회차의 사건·인물·복선을 독립적으로
                     관리합니다.
                   </p>
                 </div>
@@ -137,19 +153,9 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-
-              <div className={'pt-5'}>
-                <DnButton
-                  className={'w-full'}
-                  loading={creating}
-                  onClick={() => void handleCreate()}
-                >
-                  생성
-                </DnButton>
-              </div>
             </>
           )}
-        </div>
+        </ModalFrame>
       ),
     },
     [parentGroup, nodeType, novelType, name, creating],
@@ -205,7 +211,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
           </span>
         )}
       </button>
-      {isOpen && portal}
+      {portal}
     </>
   );
 };

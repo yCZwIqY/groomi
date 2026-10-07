@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AiOutlineClose } from 'react-icons/ai';
+import ModalFrame from '~/components/common/modal/modal-frame';
 
 import { useModal } from '~/hooks/use-modal';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -18,7 +18,7 @@ const TABS: Option<TabKey>[] = [
   { value: 'synopsis', label: '현재까지 줄거리' },
   { value: 'events', label: '사건' },
   { value: 'characters', label: '등장인물' },
-  { value: 'plotHooks', label: '떡밥' },
+  { value: 'plotHooks', label: '복선' },
 ];
 
 interface Props {
@@ -144,40 +144,51 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
     }
   };
 
-  const { portal, isOpen, setIsOpen } = useModal(
+  const { portal, setIsOpen } = useModal(
     {
       content: (
-        <div className={'ui-modal flex max-h-[80vh] w-[640px] flex-col'}>
-          <div className={'flex items-start justify-between pb-2'}>
-            <div>
-              <div className={'typo-b2-b text-stone-900'}>이번 화 정보 확인</div>
-              <div className={'mt-1 typo-b6-r text-stone-400'}>
-                AI가 생성한 줄거리·주요 사건·등장인물·떡밥 정보입니다. 필요한 부분을 수정한 뒤
-                저장해주세요.
-              </div>
-            </div>
-            <button
-              type={'button'}
-              onClick={() => setIsOpen(false)}
-            >
-              <AiOutlineClose />
-            </button>
-          </div>
-
-          <div className={'pt-4'}>
-            {draft?.stale && (
-              <p className={'mb-3 text-sm text-amber-700'}>
-                원고 또는 앞 회차가 변경됐습니다. 회차 정보를 다시 생성해주세요.
-              </p>
-            )}
-            <DnSwitch
-              options={TABS}
-              setValue={setActiveTab}
-              value={activeTab}
-            />
-          </div>
-
-          <div className={'min-h-0 flex-1 overflow-y-auto pt-4 pr-1'}>
+        <ModalFrame
+          title='이번 화 정보 확인'
+          label='이번 화 정보 확인'
+          description={
+            <>
+              AI가 생성한 줄거리·주요 사건·등장인물·복선 정보입니다. 필요한 부분을 수정한 뒤
+              저장해주세요.
+            </>
+          }
+          onClose={() => setIsOpen(false)}
+          toolbar={
+            <>
+              {draft?.stale && (
+                <p className={'mb-3 text-sm text-amber-700'}>
+                  원고 또는 앞 회차가 변경됐습니다. 회차 정보를 다시 생성해주세요.
+                </p>
+              )}
+              <DnSwitch
+                options={TABS}
+                setValue={setActiveTab}
+                value={activeTab}
+              />
+            </>
+          }
+          footer={
+            <>
+              <DnButton
+                onClick={() => setIsOpen(false)}
+                variant={'outlined'}
+              >
+                닫기
+              </DnButton>
+              <DnButton
+                loading={saving}
+                onClick={() => void handleConfirm()}
+              >
+                저장
+              </DnButton>
+            </>
+          }
+        >
+          <div>
             {activeTab === 'synopsis' && (
               <SynopsisTab
                 synopsis={synopsis}
@@ -212,28 +223,13 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
               />
             )}
           </div>
-
-          <div className={'grid grid-cols-2 gap-3 pt-6'}>
-            <DnButton
-              onClick={() => setIsOpen(false)}
-              variant={'outlined'}
-            >
-              닫기
-            </DnButton>
-            <DnButton
-              loading={saving}
-              onClick={() => void handleConfirm()}
-            >
-              저장
-            </DnButton>
-          </div>
-        </div>
+        </ModalFrame>
       ),
     },
     [activeTab, synopsis, events, characters, plotHooks, saving],
   );
 
-  return <>{isOpen && portal}</>;
+  return portal;
 };
 
 export default StoryMemoryReviewModal;

@@ -1,5 +1,5 @@
 import { StoryMemoryHeading } from '~/features/manuscript/story-memory/story-memory-heading';
-import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
+import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import { reviewCardClass, reviewFieldClass } from './review-tab-styles';
 import { AiOutlineDelete, AiOutlinePlus } from 'react-icons/ai';
@@ -22,12 +22,12 @@ const CharactersTab = ({ characters, onAdd, onRemove, onChange }: Props) => (
   <div className={'flex flex-col gap-4'}>
     <div className={'flex items-start justify-between gap-4'}>
       <StoryMemoryHeading title={'등장인물 정리'} />
-      <StoryMemoryActionButton
+      <PillActionButton
         onClick={onAdd}
         type={'button'}
       >
         <AiOutlinePlus /> 인물 추가
-      </StoryMemoryActionButton>
+      </PillActionButton>
     </div>
     {characters.length === 0 && <StoryMemoryState>등록된 인물이 없습니다.</StoryMemoryState>}
     {characters.map((character, index) => (
@@ -46,7 +46,7 @@ const CharactersTab = ({ characters, onAdd, onRemove, onChange }: Props) => (
             placeholder={'이름'}
             value={character.name}
           />
-          <StoryMemoryActionButton
+          <PillActionButton
             tone={'delete'}
             onClick={() => onRemove(index)}
             type={'button'}
@@ -54,7 +54,7 @@ const CharactersTab = ({ characters, onAdd, onRemove, onChange }: Props) => (
             aria-label={'항목 ' + (index + 1) + ' 삭제'}
           >
             <AiOutlineDelete /> 삭제
-          </StoryMemoryActionButton>
+          </PillActionButton>
         </div>
         <DnInput
           size={'s'}

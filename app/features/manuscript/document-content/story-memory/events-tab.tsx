@@ -1,5 +1,5 @@
 import { StoryMemoryHeading } from '~/features/manuscript/story-memory/story-memory-heading';
-import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
+import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import { reviewCardClass, reviewFieldClass } from './review-tab-styles';
 import { AiOutlineDelete, AiOutlinePlus } from 'react-icons/ai';
@@ -22,12 +22,12 @@ const EventsTab = ({ events, onAdd, onRemove, onChange }: Props) => (
   <div className={'flex flex-col gap-4'}>
     <div className={'flex items-start justify-between gap-4'}>
       <StoryMemoryHeading title={'주요 사건'} />
-      <StoryMemoryActionButton
+      <PillActionButton
         onClick={onAdd}
         type={'button'}
       >
         <AiOutlinePlus /> 사건 추가
-      </StoryMemoryActionButton>
+      </PillActionButton>
     </div>
     {events.length === 0 && <StoryMemoryState>등록된 사건이 없습니다.</StoryMemoryState>}
     {events.map((event, index) => (
@@ -51,7 +51,7 @@ const EventsTab = ({ events, onAdd, onRemove, onChange }: Props) => (
           onChange={(changeEvent) => onChange(index, 'description', changeEvent.target.value)}
           value={event.description}
         />
-        <StoryMemoryActionButton
+        <PillActionButton
           tone={'delete'}
           onClick={() => onRemove(index)}
           type={'button'}
@@ -59,7 +59,7 @@ const EventsTab = ({ events, onAdd, onRemove, onChange }: Props) => (
           aria-label={'항목 ' + (index + 1) + ' 삭제'}
         >
           <AiOutlineDelete /> 삭제
-        </StoryMemoryActionButton>
+        </PillActionButton>
       </div>
     ))}
   </div>

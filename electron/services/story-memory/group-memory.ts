@@ -18,7 +18,7 @@ export async function getGroupMemory(
   store: WorkspaceStore,
   parentId: string | null,
   chapterId: string,
-  options: { includeCurrentChapter?: boolean } = {},
+  options: { includeCurrentChapter?: boolean; readOnly?: boolean } = {},
 ): Promise<GroupMemoryRevision> {
   const novelType = parentId
     ? store.groups.find((group) => group.id === parentId)?.novelType
@@ -51,15 +51,16 @@ export async function getGroupMemory(
       imported.push({ chapterId: chapter.id, revision });
       records.set(chapter.id, revision);
     }
-    await withTransaction(db, async () => {
-      for (const { chapterId, revision } of imported) {
-        await run(
-          db,
-          'INSERT OR IGNORE INTO group_memory_revisions (groupId, chapterId, payload) VALUES (?, ?, ?)',
-          [groupId, chapterId, JSON.stringify(revision)],
-        );
-      }
-    });
+    if (!options.readOnly)
+      await withTransaction(db, async () => {
+        for (const { chapterId, revision } of imported) {
+          await run(
+            db,
+            'INSERT OR IGNORE INTO group_memory_revisions (groupId, chapterId, payload) VALUES (?, ?, ?)',
+            [groupId, chapterId, JSON.stringify(revision)],
+          );
+        }
+      });
     return records;
   });
   const characters = new Map<string, StoryMemoryCharacter>();

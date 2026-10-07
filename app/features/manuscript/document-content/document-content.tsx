@@ -1,4 +1,6 @@
-import { StoryMemoryActionButton } from '~/features/manuscript/story-memory/story-memory-action-button';
+import ManuscriptReviewModal from './review/manuscript-review-modal';
+import { generateManuscriptReview } from '~/lib/electron/review-api';
+import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import DnEditor from '~/components/editor/dn-editor';
 import { useEffect, useRef, useState } from 'react';
 import { LuMaximize2, LuMinimize2, LuSave } from 'react-icons/lu';
@@ -60,6 +62,20 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     return () => document.removeEventListener('keydown', onEscape);
   }, [focusMode]);
 
+  const [review, setReview] = useState<ManuscriptReview | null>(null);
+  const [preparingReview, setPreparingReview] = useState(false);
+  const preparingReviewRef = useRef(false);
+  const pendingReview = useBackgroundTasks((state) => state.pendingReview[workspaceData.path]);
+  const reviewPath = useRef(workspaceData.path);
+  useEffect(() => {
+    if (reviewPath.current !== workspaceData.path) {
+      reviewPath.current = workspaceData.path;
+      setReview(null);
+    }
+  }, [workspaceData.path]);
+  useEffect(() => {
+    if (pendingReview) setReview((current) => (current ? pendingReview : null));
+  }, [pendingReview]);
   const [storyMemoryDraft, setStoryMemoryDraft] = useState<StoryMemoryDraft | null>(null);
   const [preparingStoryMemory, setPreparingStoryMemory] = useState(false);
   const preparingStoryMemoryRef = useRef(false);
@@ -84,7 +100,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   const aiStatus = useAiStatus(workspaceData.path);
 
   const handleSave = async () => {
-    if (isBusy || preparingStoryMemoryRef.current) {
+    if (isBusy || preparingStoryMemoryRef.current || preparingReviewRef.current) {
       return;
     }
 
@@ -98,7 +114,14 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
   };
 
   const handleGenerateStoryMemory = async () => {
-    if (isBusy || saving || preparingStoryMemoryRef.current) return;
+    if (
+      isBusy ||
+      saving ||
+      preparingReview ||
+      preparingStoryMemoryRef.current ||
+      preparingReviewRef.current
+    )
+      return;
 
     const manuscriptBody = new DOMParser().parseFromString(manuscript, 'text/html').body;
     manuscriptBody.querySelectorAll('script, style').forEach((element) => element.remove());
@@ -163,6 +186,76 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       });
   };
 
+  const handleGenerateReview = async () => {
+    if (isBusy || saving || preparingReviewRef.current || preparingStoryMemoryRef.current) return;
+
+    const manuscriptBody = new DOMParser().parseFromString(manuscript, 'text/html').body;
+    manuscriptBody.querySelectorAll('script, style').forEach((element) => element.remove());
+    if (!manuscriptBody.textContent?.trim() && !manuscriptBody.querySelector('img')) {
+      showToast(
+        '원고 리뷰를 생성할 원고 본문이 없습니다. 원고를 작성한 뒤 다시 시도해주세요. 초고는 원고 리뷰 생성에 사용되지 않습니다.',
+        'danger',
+      );
+      return;
+    }
+
+    preparingReviewRef.current = true;
+    setPreparingReview(true);
+    try {
+      try {
+        await save();
+      } catch {
+        showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
+        return;
+      }
+
+      const status = await getAiStatus();
+      if (!status.ready) {
+        showToast(status.issue, 'danger');
+        return;
+      }
+      startReviewGeneration();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : '원고 리뷰 생성을 준비하지 못했습니다.',
+        'danger',
+      );
+    } finally {
+      preparingReviewRef.current = false;
+      setPreparingReview(false);
+    }
+  };
+
+  const startReviewGeneration = () => {
+    const updatedWorkspace = workspaceData;
+
+    const documentTitle = updatedWorkspace.document?.title || updatedWorkspace.name || '문서';
+    const taskId = startTask({
+      documentPath: updatedWorkspace.path,
+      documentTitle,
+      type: 'review',
+    });
+
+    generateManuscriptReview(updatedWorkspace.path)
+      .then((draft) => {
+        finishTask(taskId, 'done', undefined, undefined, draft);
+        showToast(`${documentTitle} 원고 리뷰 생성이 완료됐습니다.`, 'success');
+      })
+      .catch((error) => {
+        finishTask(
+          taskId,
+          'error',
+          undefined,
+          error instanceof Error ? error.message : '원고 리뷰 생성에 실패했습니다.',
+        );
+        showToast(`${documentTitle} 원고 리뷰 생성에 실패했습니다.`, 'danger');
+      });
+  };
+
+  const handleOpenReview = () => {
+    if (!isBusy && pendingReview) setReview({ ...pendingReview });
+  };
+
   const handleOpenStoryMemory = () => {
     if (isBusy) return;
     openedGeneratedDraft.current = pendingStoryMemoryDraft ?? null;
@@ -211,14 +304,20 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
                 {focusMode ? <LuMinimize2 size={15} /> : <LuMaximize2 size={15} />}
                 {focusMode ? '집중 모드 종료' : '집중 모드'}
               </button>
+              <PillActionButton
+                onClick={handleOpenReview}
+                disabled={isBusy || !pendingReview}
+              >
+                리뷰 보기
+              </PillActionButton>
               <div>
-                <StoryMemoryActionButton
+                <PillActionButton
                   onClick={handleOpenStoryMemory}
                   disabled={isBusy}
                   title={isBusy ? '이 회차의 생성 작업이 끝난 뒤 확인할 수 있습니다.' : undefined}
                 >
-                  사건·인물·떡밥 보기
-                </StoryMemoryActionButton>
+                  회차 정보 보기
+                </PillActionButton>
               </div>
             </div>
             {workspaceData.document?.storyMemory?.stale && (
@@ -267,14 +366,10 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
                   ? '저장 대기 중…'
                   : '자동 저장됨'}
           </div>
-          {isBusy && (
-            <div className={'typo-b6-r text-stone-400'}>
-              이 회차는 백그라운드 작업이 진행 중이라 저장·회차 정보·댓글 생성을 사용할 수 없습니다.
-            </div>
-          )}
+
           <DnButton
             className={'w-[120px]'}
-            disabled={isBusy || saving || preparingStoryMemory}
+            disabled={isBusy || saving || preparingReview || preparingStoryMemory}
             loading={saving}
             onClick={handleSave}
           >
@@ -287,7 +382,12 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           <DnButton
             variant={'outlined'}
             disabled={
-              isBusy || saving || preparingStoryMemory || aiStatus.checking || !aiStatus.ready
+              isBusy ||
+              saving ||
+              preparingReview ||
+              preparingStoryMemory ||
+              aiStatus.checking ||
+              !aiStatus.ready
             }
             loading={preparingStoryMemory}
             title={'현재 내용을 자동으로 저장한 뒤 회차 정보를 생성합니다.'}
@@ -295,7 +395,28 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           >
             회차 정보 생성
           </DnButton>
+          <DnButton
+            variant='outlined'
+            disabled={
+              isBusy ||
+              saving ||
+              preparingReview ||
+              preparingStoryMemory ||
+              aiStatus.checking ||
+              !aiStatus.ready
+            }
+            loading={preparingReview}
+            onClick={handleGenerateReview}
+          >
+            원고 리뷰 생성
+          </DnButton>
         </div>
+        {isBusy && (
+          <div className={'typo-b6-r text-stone-400 pt-2'}>
+            이 회차는 백그라운드 작업이 진행 중이라 저장·회차 정보·원고 리뷰 생성을 사용할 수
+            없습니다. 원고 리뷰만 진행 중일 때는 댓글을 생성할 수 있습니다.
+          </div>
+        )}
         {!aiStatus.checking && aiStatus.issue && (
           <div className={'mt-2 flex items-center justify-end gap-2 text-xs text-stone-500'}>
             <span>{aiStatus.issue}</span>
@@ -322,6 +443,13 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
           key={workspaceData.id}
         />
       </div>
+      <ManuscriptReviewModal
+        key={workspaceData.path}
+        review={reviewPath.current === workspaceData.path ? review : null}
+        documentTitle={workspaceData.document?.title || workspaceData.name}
+        loading={isBusy || preparingReview || preparingStoryMemory || saving}
+        onRegenerate={handleGenerateReview}
+      />
       <StoryMemoryReviewModal
         documentPath={workspaceData.path}
         documentTitle={workspaceData.document?.title || workspaceData.name}

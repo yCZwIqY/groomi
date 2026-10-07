@@ -1,3 +1,4 @@
+import { withTransaction } from '../../db/connection.js';
 import type { CommentExampleInput } from '../../repositories/comment-example-repository.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
 
@@ -29,11 +30,15 @@ export function createCommentExampleActions(context: WorkspaceServiceContext) {
     });
   }
 
-  async function removeCommentExample(id: string) {
+  async function removeCommentExample(id: string | string[]) {
+    const ids = [...new Set(Array.isArray(id) ? id : [id])];
+    if (!ids.length || ids.some((value) => typeof value !== 'string' || !value.trim()))
+      throw new Error('삭제할 댓글 스타일 예시를 선택해주세요.');
     const workspacePath = await context.getCurrentWorkspacePath();
-
-    await context.withWorkspaceRepositories(workspacePath, async ({ commentExamples }) => {
-      await commentExamples.removeCommentExample(id);
+    await context.withWorkspaceRepositories(workspacePath, async ({ db, commentExamples }) => {
+      await withTransaction(db, async () => {
+        for (const value of ids) await commentExamples.removeCommentExample(value);
+      });
     });
 
     return { removed: true, id };

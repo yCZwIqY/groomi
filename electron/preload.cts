@@ -52,6 +52,7 @@ const channels = {
     updateSelectedEmbeddingModel: 'setting:update-selected-embedding-model',
     updateSelectedLLMModel: 'setting:update-selected-llm-model',
   },
+  review: { generate: 'review:generate' },
   storyMemory: {
     generate: 'story-memory:generate',
     save: 'story-memory:save',
@@ -172,6 +173,11 @@ const settingApi = {
     ipcRenderer.invoke(channels.setting.updateSelectedLLMModel, selectedLLMModel),
 };
 
+const reviewApi = {
+  generateManuscriptReview: (targetPath: string) =>
+    ipcRenderer.invoke(channels.review.generate, targetPath),
+};
+
 const storyMemoryApi = {
   generateStoryMemory: (targetPath: string) =>
     ipcRenderer.invoke(channels.storyMemory.generate, targetPath),
@@ -192,7 +198,8 @@ const commentApi = {
   generateComments: (payload: GenerateCommentsPayload) =>
     ipcRenderer.invoke(channels.comment.generateComments, payload),
   listCommentExamples: () => ipcRenderer.invoke(channels.comment.listExamples),
-  removeCommentExample: (id: string) => ipcRenderer.invoke(channels.comment.removeExample, id),
+  removeCommentExample: (id: string | string[]) =>
+    ipcRenderer.invoke(channels.comment.removeExample, id),
   listGeneratedComments: (documentPath: string) =>
     ipcRenderer.invoke(channels.comment.listGenerated, documentPath),
   removeGeneratedComment: (documentPath: string, commentId: string | string[]) =>
@@ -205,6 +212,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...documentApi,
   ...settingApi,
   ...storyMemoryApi,
+  ...reviewApi,
   ...ollamaApi,
   ...commentApi,
 });

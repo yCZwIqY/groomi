@@ -40,7 +40,7 @@ export function mergeMemoryChanges(
         (item) => item.description === change.description && item.plantedAt === change.plantedAt,
       );
     if (change.id && !previous && !change.description)
-      throw new Error('알 수 없는 떡밥 ID가 생성되었습니다. 다시 생성해주세요.');
+      throw new Error('알 수 없는 복선 ID가 생성되었습니다. 다시 생성해주세요.');
     const hook = { ...previous, ...change, id: previous?.id };
     if (
       typeof hook.description !== 'string' ||
@@ -48,7 +48,7 @@ export function mergeMemoryChanges(
       typeof hook.plantedAt !== 'string' ||
       (hook.status !== undefined && !['resolved', 'unresolved'].includes(hook.status))
     ) {
-      throw new Error('생성된 떡밥 정보 형식이 올바르지 않습니다. 다시 생성해주세요.');
+      throw new Error('생성된 복선 정보 형식이 올바르지 않습니다. 다시 생성해주세요.');
     }
     const index = plotHooks.findIndex((item) =>
       hook.id && item.id

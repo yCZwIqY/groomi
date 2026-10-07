@@ -18,7 +18,9 @@ export function registerCommentIpcHandlers(
   });
 
   secureHandle(channels.comment.removeExample, async (_, id) => {
-    return workspaceService.removeCommentExample(requireString(id, 'id'));
+    return workspaceService.removeCommentExample(
+      Array.isArray(id) ? id.map((value) => requireString(value, 'id')) : requireString(id, 'id'),
+    );
   });
 
   secureHandle(channels.comment.listGenerated, async (_, documentPath) => {

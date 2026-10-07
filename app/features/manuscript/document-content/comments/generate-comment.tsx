@@ -46,7 +46,10 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
   const startTask = useBackgroundTasks((state) => state.startTask);
   const finishTask = useBackgroundTasks((state) => state.finishTask);
   const runningTask = useBackgroundTasks((state) =>
-    state.tasks.find((task) => task.documentPath === documentPath && task.status === 'running'),
+    state.tasks.find(
+      (task) =>
+        task.documentPath === documentPath && task.status === 'running' && task.type !== 'review',
+    ),
   );
   const isBusy = Boolean(runningTask);
   const overlayVisible = loading || isBusy;

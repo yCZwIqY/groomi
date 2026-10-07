@@ -8,7 +8,8 @@ import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
 import { sortChapters } from './chapter-order.js';
 import { buildStoryMemoryPrompt } from './story-memory-prompt.js';
-import { storyMemorySchema, validateSchema } from './story-memory-schema.js';
+import { storyMemorySchema } from './story-memory-schema.js';
+import { validateSchema } from '../json-schema.js';
 import {
   memoryContextFingerprint,
   manuscriptFingerprint,
@@ -246,7 +247,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
     }
     for (const hook of draft.plotHooks) {
       if (hook.id && !groupMemory.plotHooks.some((item) => item.id === hook.id))
-        throw new Error('알 수 없는 떡밥 ID입니다.');
+        throw new Error('알 수 없는 복선 ID입니다.');
     }
     const records = mergeMemoryChanges(groupMemory, draft);
     const storyMemory: StoryMemory = {
@@ -388,10 +389,10 @@ export function parseStoryMemoryDraft(
   for (const hook of parsed.plotHooks) {
     if (hook.id) {
       const id = aliases.plotHooks.get(hook.id);
-      if (!id) throw new Error('알 수 없는 떡밥 ID가 생성되었습니다.');
+      if (!id) throw new Error('알 수 없는 복선 ID가 생성되었습니다.');
       hook.id = id;
     } else {
-      if (!hook.description) throw new Error('신규 떡밥은 description이 필요합니다.');
+      if (!hook.description) throw new Error('신규 복선은 description이 필요합니다.');
       hook.plantedAt = chapterTitle;
       hook.status ??= 'unresolved';
     }

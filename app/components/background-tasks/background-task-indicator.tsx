@@ -7,6 +7,7 @@ import {
 import { useBackgroundTasks } from '~/stores/use-background-tasks';
 
 const TYPE_LABEL: Record<string, string> = {
+  review: '원고 리뷰',
   'story-memory': '회차 정보 생성',
   comments: '댓글 생성',
 };

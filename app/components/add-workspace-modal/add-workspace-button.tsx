@@ -3,7 +3,7 @@ import ModalFrame from '~/components/common/modal/modal-frame';
 import { useWorkspacePath } from '~/hooks';
 import { useModal } from '~/hooks/use-modal';
 import DnInput from '~/components/common/inputs/dn-input';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type MouseEventHandler, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -23,8 +23,9 @@ interface Props {
   targetPath?: string;
   children?: ReactNode;
   onCreated?: () => void;
+  renderTrigger?: (onClick: MouseEventHandler<HTMLButtonElement>) => ReactNode;
 }
-const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
+const AddWorkspaceButton = ({ targetPath, children, onCreated, renderTrigger }: Props) => {
   const navigate = useNavigate();
   const setSelectedWorkspace = useSelectedWorkspace((state) => state.setSelectedWorkspace);
   const { workspacePath, createNewWorkspace } = useWorkspacePath();
@@ -191,25 +192,32 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
     }
   };
 
+  const openModal: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.stopPropagation();
+    setIsOpen(true);
+  };
+
   return (
     <>
-      <button
-        className={'cursor-pointer'}
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsOpen(true);
-        }}
-      >
-        {children ?? (
-          <span
-            className={
-              'flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary-600'
-            }
-          >
-            <TbFolderOpen size={16} />
-          </span>
-        )}
-      </button>
+      {renderTrigger ? (
+        renderTrigger(openModal)
+      ) : (
+        <button
+          type='button'
+          className={'cursor-pointer'}
+          onClick={openModal}
+        >
+          {children ?? (
+            <span
+              className={
+                'flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary-600'
+              }
+            >
+              <TbFolderOpen size={16} />
+            </span>
+          )}
+        </button>
+      )}
       {portal}
     </>
   );

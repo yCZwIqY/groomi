@@ -96,14 +96,19 @@ const SideBar = () => {
               </div>
             )}
             <div className={`flex flex-1 ${collapsed ? 'justify-center' : 'justify-end'}`}>
-              <AddWorkspaceButton targetPath={workspacePath}>
-                <DnIconButton
-                  variant={'dark'}
-                  size={'s'}
-                >
-                  <TbPlus size={16} />
-                </DnIconButton>
-              </AddWorkspaceButton>
+              <AddWorkspaceButton
+                targetPath={workspacePath}
+                renderTrigger={(onClick) => (
+                  <DnIconButton
+                    onClick={onClick}
+                    aria-label='새 문서 혹은 그룹 추가'
+                    variant={'dark'}
+                    size={'s'}
+                  >
+                    <TbPlus size={16} />
+                  </DnIconButton>
+                )}
+              />
             </div>
           </div>
 

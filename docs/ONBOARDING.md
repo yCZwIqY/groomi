@@ -35,10 +35,10 @@ SUIT 폰트 라이선스는 `assets/FONT-LICENSE`에 포함되어 있습니다.
 ## 실제 앱 캡처 추가
 
 기능 소개 아래 `#screenshots` 섹션에 3개 이미지 공간이 있습니다.
-현재 실제 캡처는 `editor-screenshot.png`, `story-screenshot.png`, `comments-screenshot.png`입니다.
+현재 실제 캡처는 `groomi-detail.png`, `groomi-info-moda-hook.png`, `groomi-comments.png`입니다.
 
-1. 캡처 파일을 `docs/assets/`에 넣습니다. 예: `editor-screenshot.png`,
-   `story-screenshot.png`, `comments-screenshot.png`.
+1. 캡처 파일을 `docs/assets/`에 넣습니다. 예: `groomi-detail.png`,
+   `groomi-info-moda-hook.png`, `groomi-comments.png`.
 2. `docs/index.html`의 `#screenshots` 안에서 해당 `img`의 `src`를 파일 경로로 바꿉니다.
 3. `alt`를 실제 화면 설명으로 바꾸고, `width`와 `height`를 원본 이미지 크기로 지정합니다.
 4. 섹션 안내 문구를 실제 화면을 소개하는 내용으로 바꿉니다.

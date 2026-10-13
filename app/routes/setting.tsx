@@ -13,10 +13,8 @@ const Setting = () => {
           작업 환경과 AI 기능에 필요한 항목을 관리합니다.
         </p>
       </div>
-      <div className={'grid items-start gap-5 xl:grid-cols-2'}>
-        <AiSetting />
-        <TrashNode />
-      </div>
+      <AiSetting />
+      <TrashNode />
       <CommentStyleExampleSetting />
       <WorkspaceBackup />
       <LicenseSettings />

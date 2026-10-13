@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { writeFile } from 'node:fs/promises';
 
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,45 @@ export function createMainWindow() {
 
   mainWindow.removeMenu();
 
+  // TODO: 임시 화면 촬영 완료 후 Ctrl+Alt+P 스크린샷 단축키 삭제 예정.
+  let capturingScreenshot = false;
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (
+      input.type !== 'keyDown' ||
+      !input.control ||
+      input.shift ||
+      !input.alt ||
+      input.meta ||
+      input.key.toLowerCase() !== 'p'
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (capturingScreenshot || input.isAutoRepeat) return;
+    capturingScreenshot = true;
+    void (async () => {
+      try {
+        const screenshot = await mainWindow.webContents.capturePage();
+        if (screenshot.isEmpty() || mainWindow.isDestroyed()) return;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+          title: '현재 화면을 PNG로 저장',
+          defaultPath: path.join(app.getPath('pictures'), `groomi-${timestamp}.png`),
+          filters: [{ name: 'PNG 이미지', extensions: ['png'] }],
+        });
+        if (canceled || !filePath) return;
+        await writeFile(filePath, screenshot.toPNG());
+      } catch (error) {
+        dialog.showErrorBox(
+          '스크린샷 저장 실패',
+          error instanceof Error ? error.message : '화면을 저장하지 못했습니다.',
+        );
+      } finally {
+        capturingScreenshot = false;
+      }
+    })();
+  });
+
   if (process.platform === 'win32') {
     mainWindow.setAppDetails({
       appId: 'com.groomi.app',
@@ -82,6 +122,5 @@ export function createMainWindow() {
   });
 
   loadRenderer(mainWindow);
-
   return mainWindow;
 }

@@ -178,6 +178,34 @@ app
       'workroom screenshot hydration',
     );
     await captureScreenshot('01-workroom');
+    assert.equal(
+      await window.webContents.executeJavaScript(
+        `document.querySelectorAll('button button').length`,
+      ),
+      0,
+      'buttons must not be nested',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('button[aria-label="새 문서 혹은 그룹 추가"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `!!document.querySelector('[aria-label="새 문서 혹은 그룹 추가"][role="dialog"]')`,
+        ),
+      'sidebar add button opens modal',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('button[aria-label="새 문서 혹은 그룹 추가 닫기"]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `!document.querySelector('[aria-label="새 문서 혹은 그룹 추가"][role="dialog"]')`,
+        ),
+      'sidebar add modal closes',
+    );
+    console.log('PASS: sidebar add trigger opens modal without nested buttons');
     if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
       await window.webContents.executeJavaScript(
         `document.querySelector('a[href="/setting"]').click()`,

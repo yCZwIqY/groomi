@@ -84,9 +84,8 @@ const WorkspaceData = () => {
             void loadWorkspaceTree(selectedWorkspace?.path);
           }}
           targetPath={selectedWorkspace?.path}
-        >
-          <DnButton>추가하기</DnButton>
-        </AddWorkspaceButton>
+          renderTrigger={(onClick) => <DnButton onClick={onClick}>추가하기</DnButton>}
+        />
       </div>
       {workspaceData?.workspace?.novelType === 'long' ? (
         loadedTreePath === workspaceData.path && selectedWorkspace?.path === workspaceData.path ? (

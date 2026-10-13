@@ -63,15 +63,20 @@ const SideBarItem = (fileTreeNode: Props) => {
           )}
         </div>
         {type === 'workspace' && (
-          <AddWorkspaceButton targetPath={path}>
-            <DnIconButton
-              className={'rounded-full'}
-              size={'s'}
-              variant={'ghost'}
-            >
-              <TbPlus />
-            </DnIconButton>
-          </AddWorkspaceButton>
+          <AddWorkspaceButton
+            targetPath={path}
+            renderTrigger={(onClick) => (
+              <DnIconButton
+                onClick={onClick}
+                aria-label={`${name}에 문서 혹은 그룹 추가`}
+                className={'rounded-full'}
+                size={'s'}
+                variant={'ghost'}
+              >
+                <TbPlus />
+              </DnIconButton>
+            )}
+          />
         )}
       </div>
       <div

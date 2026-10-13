@@ -1,5 +1,6 @@
+import { TbX } from 'react-icons/tb';
 import type { ReactNode } from 'react';
-import { AiOutlineClose } from 'react-icons/ai';
+
 type Props = {
   title: ReactNode;
   label: string;
@@ -41,7 +42,7 @@ export default function ModalFrame({
             aria-label={label + ' 닫기'}
             className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-200 focus-visible:outline-primary-500'
           >
-            <AiOutlineClose size={18} />
+            <TbX size={18} />
           </button>
         </div>
         {toolbar && <div className='pt-4'>{toolbar}</div>}

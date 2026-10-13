@@ -1,17 +1,18 @@
+import {
+  TbAlignCenter,
+  TbAlignLeft,
+  TbAlignRight,
+  TbArrowBackUp,
+  TbArrowForwardUp,
+  TbBold,
+  TbItalic,
+  TbList,
+  TbListNumbers,
+  TbStrikethrough,
+} from 'react-icons/tb';
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import {
-  LuAlignCenter,
-  LuAlignLeft,
-  LuAlignRight,
-  LuBold,
-  LuItalic,
-  LuList,
-  LuListOrdered,
-  LuRedo2,
-  LuStrikethrough,
-  LuUndo2,
-} from 'react-icons/lu';
+
 import EditorSymbols from './editor-symbols';
 
 const DnEditorToolbar = ({ editor }: { editor: Editor | null }) => {
@@ -35,13 +36,13 @@ const DnEditorToolbar = ({ editor }: { editor: Editor | null }) => {
     [
       {
         label: '실행 취소 (Ctrl+Z)',
-        icon: LuUndo2,
+        icon: TbArrowBackUp,
         disabled: !state?.undo,
         run: () => editor?.chain().focus().undo().run(),
       },
       {
         label: '다시 실행 (Ctrl+Shift+Z)',
-        icon: LuRedo2,
+        icon: TbArrowForwardUp,
         disabled: !state?.redo,
         run: () => editor?.chain().focus().redo().run(),
       },
@@ -49,19 +50,19 @@ const DnEditorToolbar = ({ editor }: { editor: Editor | null }) => {
     [
       {
         label: '굵게 (Ctrl+B)',
-        icon: LuBold,
+        icon: TbBold,
         active: state?.bold,
         run: () => editor?.chain().focus().toggleBold().run(),
       },
       {
         label: '기울임 (Ctrl+I)',
-        icon: LuItalic,
+        icon: TbItalic,
         active: state?.italic,
         run: () => editor?.chain().focus().toggleItalic().run(),
       },
       {
         label: '취소선',
-        icon: LuStrikethrough,
+        icon: TbStrikethrough,
         active: state?.strike,
         run: () => editor?.chain().focus().toggleStrike().run(),
       },
@@ -69,19 +70,19 @@ const DnEditorToolbar = ({ editor }: { editor: Editor | null }) => {
     [
       {
         label: '왼쪽 정렬',
-        icon: LuAlignLeft,
+        icon: TbAlignLeft,
         active: state?.left,
         run: () => editor?.chain().focus().setTextAlign('left').run(),
       },
       {
         label: '가운데 정렬',
-        icon: LuAlignCenter,
+        icon: TbAlignCenter,
         active: state?.center,
         run: () => editor?.chain().focus().setTextAlign('center').run(),
       },
       {
         label: '오른쪽 정렬',
-        icon: LuAlignRight,
+        icon: TbAlignRight,
         active: state?.right,
         run: () => editor?.chain().focus().setTextAlign('right').run(),
       },
@@ -89,13 +90,13 @@ const DnEditorToolbar = ({ editor }: { editor: Editor | null }) => {
     [
       {
         label: '글머리 목록',
-        icon: LuList,
+        icon: TbList,
         active: state?.bullet,
         run: () => editor?.chain().focus().toggleBulletList().run(),
       },
       {
         label: '번호 목록',
-        icon: LuListOrdered,
+        icon: TbListNumbers,
         active: state?.ordered,
         run: () => editor?.chain().focus().toggleOrderedList().run(),
       },

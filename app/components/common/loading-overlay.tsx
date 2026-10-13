@@ -1,5 +1,5 @@
+import { TbLoader2 } from 'react-icons/tb';
 import type { ReactNode } from 'react';
-import { FaSpinner } from 'react-icons/fa';
 
 interface Props {
   loading: boolean;
@@ -27,7 +27,7 @@ const LoadingOverlay = ({ loading, label, children, className = '' }: Props) => 
             'flex flex-col items-center gap-3 rounded-xl border border-primary-100 bg-white px-6 py-5 shadow-sm'
           }
         >
-          <FaSpinner
+          <TbLoader2
             aria-hidden
             className={'size-6 animate-spin text-primary-500 motion-reduce:animate-none'}
           />

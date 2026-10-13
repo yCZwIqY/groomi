@@ -1,10 +1,11 @@
+import { TbFile, TbFolder } from 'react-icons/tb';
 import DnCheckbox from '~/components/common/dn-checkbox';
 import ListPagination from '~/components/common/list-pagination';
 import ListSelectionToolbar from '~/components/common/list-selection-toolbar';
 import { usePaginatedSelection } from '~/hooks/use-paginated-selection';
 import SettingsSection from '~/components/common/settings-section';
 import { formatDate } from '../../../../utils/date-utils';
-import { AiOutlineFile, AiOutlineFolder } from 'react-icons/ai';
+
 import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
 
 interface Props {
@@ -67,9 +68,9 @@ const TrashList = ({
               />
               <div>
                 {item.type === 'document' ? (
-                  <AiOutlineFile color={'var(--color-gray-400)'} />
+                  <TbFile color={'var(--color-gray-400)'} />
                 ) : (
-                  <AiOutlineFolder color={'var(--color-primary-500)'} />
+                  <TbFolder color={'var(--color-primary-500)'} />
                 )}
               </div>
               <div className={'min-w-0'}>

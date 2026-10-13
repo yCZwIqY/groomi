@@ -6,6 +6,9 @@ import electron from 'electron';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'groomi-ui-'));
 const packaged = process.argv.includes('--packaged');
+const screenshotDirectory =
+  process.env.GROOMI_UI_SCREENSHOT_DIR ||
+  (process.argv.includes('--screenshots') ? path.resolve('release/ui-screenshots') : undefined);
 let code = 1;
 try {
   code = await new Promise((resolve, reject) => {
@@ -15,6 +18,7 @@ try {
       env: {
         ...process.env,
         GROOMI_TEST_DIR: root,
+        ...(screenshotDirectory ? { GROOMI_UI_SCREENSHOT_DIR: screenshotDirectory } : {}),
         GROOMI_APP_ROOT: packaged
           ? path.resolve('release/win-unpacked/resources/app.asar')
           : process.cwd(),

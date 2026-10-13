@@ -1,8 +1,9 @@
+import { TbPlus, TbTrash } from 'react-icons/tb';
 import { StoryMemoryHeading } from '~/features/manuscript/story-memory/story-memory-heading';
 import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import { reviewCardClass, reviewFieldClass } from './review-tab-styles';
-import { AiOutlineDelete, AiOutlinePlus } from 'react-icons/ai';
+
 import DnInput from '~/components/common/inputs/dn-input';
 import { DnSelect } from '~/components/common/selector';
 
@@ -27,7 +28,7 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
         onClick={onAdd}
         type={'button'}
       >
-        <AiOutlinePlus /> 복선 추가
+        <TbPlus /> 복선 추가
       </PillActionButton>
     </div>
     {plotHooks.length === 0 && <StoryMemoryState>등록된 복선이 없습니다.</StoryMemoryState>}
@@ -76,7 +77,7 @@ const PlotHooksTab = ({ plotHooks, onAdd, onRemove, onChange }: Props) => (
           aria-label={'항목 ' + (index + 1) + ' 삭제'}
         >
           삭제
-          <AiOutlineDelete />
+          <TbTrash />
         </PillActionButton>
       </div>
     ))}

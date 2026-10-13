@@ -1,7 +1,7 @@
+import { TbLoader2 } from 'react-icons/tb';
 import type { ButtonHTMLAttributes } from 'react';
 import type { FontWeight, Rounded, Size, Variants } from '~/components';
 import { tv } from 'tailwind-variants/lite';
-import { FaSpinner } from 'react-icons/fa';
 
 interface Props extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'size'> {
   variant?: Variants | 'red' | 'red-outline' | 'disabled';
@@ -63,7 +63,7 @@ const DnButton = ({
     >
       {loading ? (
         <div>
-          <FaSpinner
+          <TbLoader2
             fontSize={'100%'}
             className={'animate-spin'}
           />

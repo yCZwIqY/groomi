@@ -1,8 +1,9 @@
+import { TbFilePencil, TbNotebook } from 'react-icons/tb';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import DnEditorToolbar from '~/components/editor/dn-editor-toolbar';
 import { useEffect, useId, useState } from 'react';
-import { LuFilePenLine, LuNotebookPen } from 'react-icons/lu';
+
 import { Placeholder } from '@tiptap/extensions';
 import TextAlign from '~/components/editor/text-align';
 
@@ -92,7 +93,7 @@ const DnEditor = ({
     <section className='flex h-full min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-stone-200 bg-white'>
       <div className='flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 px-4 py-3'>
         <h3 className='flex items-center gap-2 text-sm font-semibold text-stone-700'>
-          {variant === 'draft' ? <LuNotebookPen size={17} /> : <LuFilePenLine size={17} />}
+          {variant === 'draft' ? <TbNotebook size={17} /> : <TbFilePencil size={17} />}
           {variant === 'draft' ? '초안' : '원고'}
         </h3>
         <div className='flex items-center gap-3 text-xs text-stone-500'>

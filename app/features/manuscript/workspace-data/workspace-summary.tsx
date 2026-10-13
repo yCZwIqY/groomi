@@ -1,7 +1,7 @@
+import { TbCalendar, TbCamera, TbClock } from 'react-icons/tb';
 import { uiFieldClass } from '~/components/common/ui-styles';
 import { useEffect, useState } from 'react';
-import { FaCamera } from 'react-icons/fa';
-import { AiOutlineCalendar, AiOutlineClockCircle } from 'react-icons/ai';
+
 import { readImage, removeFile, saveImage, showInFolder } from '~/lib/electron/file-api';
 import { updateWorkspaceInfo } from '~/lib/electron/workspace-api';
 import DnButton from '~/components/common/buttons/dn-button';
@@ -126,7 +126,7 @@ const WorkspaceSummary = ({ workspaceData, onUpdated }: Props) => {
               'group relative flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg bg-stone-200'
             }
           >
-            <FaCamera color={'#737373'} />
+            <TbCamera color={'#737373'} />
             <div className={'text-neutral-500'}>커버 이미지 교체</div>
           </label>
         )}
@@ -156,11 +156,11 @@ const WorkspaceSummary = ({ workspaceData, onUpdated }: Props) => {
         </h3>
         <div className={'flex flex-wrap gap-5 text-sm text-neutral-400'}>
           <div className={'flex items-center gap-1'}>
-            <AiOutlineCalendar />
+            <TbCalendar />
             {formatDate(new Date(workspaceData?.createdAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
           </div>
           <div className={'flex items-center gap-1'}>
-            <AiOutlineClockCircle />
+            <TbClock />
             {formatDate(new Date(workspaceData?.updatedAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
           </div>
         </div>

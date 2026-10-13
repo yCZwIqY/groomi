@@ -1,5 +1,6 @@
+import { TbShieldCheck } from 'react-icons/tb';
 import { Link } from 'react-router';
-import { AiOutlineSafety } from 'react-icons/ai';
+
 import useBackupStatus from '~/hooks/use-backup-status';
 
 export default function BackupReminder() {
@@ -10,7 +11,7 @@ export default function BackupReminder() {
       className='ui-card flex flex-wrap items-center gap-4 border-primary-200 bg-primary-50 p-4'
       aria-label='원고 백업 안내'
     >
-      <AiOutlineSafety
+      <TbShieldCheck
         size={24}
         className='shrink-0 text-primary-500'
         aria-hidden='true'

@@ -1,10 +1,11 @@
+import { TbChevronLeft, TbMenu2, TbPlus, TbSettings } from 'react-icons/tb';
 import { Link } from 'react-router';
 import AddWorkspaceButton from '~/components/add-workspace-modal/add-workspace-button';
 import { useWorkspacePath } from '~/hooks';
 import { useEffect, useState } from 'react';
 import { getWorkspaceTree, onWorkspaceTreeChanged } from '~/lib/electron/workspace-api';
 import SideBarItem from '~/features/side-bar/side-bar-item';
-import { AiOutlineLeft, AiOutlineMenu, AiOutlinePlus, AiOutlineSetting } from 'react-icons/ai';
+
 import DnIconButton from '~/components/common/buttons/dn-icon-button';
 import logo from '~/assets/logo.png';
 
@@ -66,7 +67,7 @@ const SideBar = () => {
               onClick={() => setCollapsed((prev) => !prev)}
               size={'s'}
             >
-              {collapsed ? <AiOutlineMenu size={18} /> : <AiOutlineLeft size={18} />}
+              {collapsed ? <TbMenu2 size={18} /> : <TbChevronLeft size={18} />}
             </DnIconButton>
           </div>
         </div>
@@ -100,7 +101,7 @@ const SideBar = () => {
                   variant={'dark'}
                   size={'s'}
                 >
-                  <AiOutlinePlus size={16} />
+                  <TbPlus size={16} />
                 </DnIconButton>
               </AddWorkspaceButton>
             </div>
@@ -125,7 +126,7 @@ const SideBar = () => {
           to={'/setting'}
           className={`flex items-center gap-2 hover:bg-stone-100 rounded-full ${collapsed ? 'p-1' : 'px-3 py-2'}`}
         >
-          <AiOutlineSetting size={24} />
+          <TbSettings size={24} />
           {!collapsed && 'Settings'}
         </Link>
       </div>

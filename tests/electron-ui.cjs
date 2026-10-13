@@ -15,6 +15,20 @@ let root;
 let window;
 const errors = [];
 
+async function captureScreenshot(name) {
+  if (!process.env.GROOMI_UI_SCREENSHOT_DIR) return;
+  await window.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
+  await window.webContents.executeJavaScript(
+    `Promise.all([...document.images].map(image => image.decode().catch(() => {}))).then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  await fs.mkdir(process.env.GROOMI_UI_SCREENSHOT_DIR, { recursive: true });
+  await fs.writeFile(
+    path.join(process.env.GROOMI_UI_SCREENSHOT_DIR, `${name}.png`),
+    (await window.webContents.capturePage()).toPNG(),
+  );
+}
+
 async function until(check, description) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
@@ -139,12 +153,13 @@ app
     registerRendererProtocol();
     window = new BrowserWindow({
       show: false,
-      width: 1280,
-      height: 900,
+      width: process.env.GROOMI_UI_SCREENSHOT_DIR ? 1920 : 1280,
+      height: process.env.GROOMI_UI_SCREENSHOT_DIR ? 1080 : 900,
       webPreferences: {
         preload: path.join(appRoot, 'dist-electron', 'preload.cjs'),
         contextIsolation: true,
         sandbox: true,
+        backgroundThrottling: false,
       },
     });
     window.webContents.on('console-message', (event) => {
@@ -155,6 +170,35 @@ app
       () => window.webContents.executeJavaScript(`document.body.textContent.includes('첫 회차')`),
       'workspace hydration',
     );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `location.pathname === '/workroom' && !!document.querySelector('h1') && !document.body.textContent.includes('워크스페이스를 불러오는 중입니다.')`,
+        ),
+      'workroom screenshot hydration',
+    );
+    await captureScreenshot('01-workroom');
+    if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
+      await window.webContents.executeJavaScript(
+        `document.querySelector('a[href="/setting"]').click()`,
+      );
+      await until(
+        () =>
+          window.webContents.executeJavaScript(
+            `document.body.textContent.includes('라이선스 및 출처 보기')`,
+          ),
+        'settings screenshot hydration',
+      );
+      await captureScreenshot('05-settings');
+      await window.webContents.executeJavaScript(`document.querySelector('a[href="/"]').click()`);
+      await until(
+        () =>
+          window.webContents.executeJavaScript(
+            `location.pathname === '/workroom' && document.body.textContent.includes('첫 회차')`,
+          ),
+        'return to workroom after screenshot',
+      );
+    }
     await openChapter('첫 회차');
     await until(
       () =>
@@ -171,6 +215,21 @@ app
       })()`),
       'saved draft and manuscript hydration',
     );
+    await captureScreenshot('02-editor-split');
+    if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
+      await click('원고만');
+      await captureScreenshot('03-editor-manuscript');
+      await click('초안만');
+      await captureScreenshot('04-editor-draft');
+      await click('분할보기');
+      await until(
+        () =>
+          window.webContents.executeJavaScript(
+            `document.querySelectorAll('[contenteditable="true"]').length === 2`,
+          ),
+        'restore split view after screenshots',
+      );
+    }
 
     await window.webContents.executeJavaScript(`(() => {
       const editor = document.querySelector('[aria-label="원고 본문"]');
@@ -396,6 +455,86 @@ app
     );
     console.log('PASS: route navigation flushes the manuscript');
 
+    await click('라이선스 및 출처 보기');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="라이선스 및 출처"] pre')?.textContent.includes('Paweł Kuna')`,
+        ),
+      'offline Tabler license loads',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const search = document.querySelector('[aria-label="라이선스 및 출처"] input');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(search, 'SUIT');
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="라이선스 및 출처"] button[aria-pressed]')?.textContent.includes('SUIT')`,
+        ),
+      'license search filters fonts',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="라이선스 및 출처"] button[aria-pressed]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="라이선스 및 출처"] pre')?.textContent.includes('Reserved Font Name SUIT')`,
+        ),
+      'font copyright and full license load',
+    );
+    if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
+      await captureScreenshot('license-notices');
+    }
+    await window.webContents.executeJavaScript(`(() => {
+      const search = document.querySelector('[aria-label="라이선스 및 출처"] input');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, 'Chromium');
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="라이선스 및 출처"] button[aria-pressed]')?.textContent.includes('Chromium')`,
+        ),
+      'Chromium notice is searchable',
+    );
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="라이선스 및 출처"] button[aria-pressed]').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[aria-label="라이선스 및 출처"] pre')?.textContent.includes('Chromium software is made available')`,
+        ),
+      'Chromium credits load offline',
+    );
+    await click('다음');
+    assert.ok(
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[aria-label="라이선스 및 출처"] [aria-live="polite"]')?.textContent.startsWith('2 /')`,
+      ),
+    );
+    await click('이전');
+    assert.ok(
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[aria-label="라이선스 및 출처"] pre').textContent.includes('Chromium software is made available')`,
+      ),
+    );
+    await window.webContents.executeJavaScript(
+      `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `!document.querySelector('[aria-label="라이선스 및 출처"]') && document.activeElement?.textContent === '라이선스 및 출처 보기'`,
+        ),
+      'license modal closes and restores focus',
+    );
+    console.log('PASS: offline license notices, search, copyright and keyboard dismissal');
+
     // Exercise the real credential IPC and both remote generation services without paid requests.
     let remoteRequests = 0;
     let responseMode = 'story-memory';
@@ -596,11 +735,7 @@ app
       'selected model and pricing rendered',
     );
     if (process.env.GROOMI_UI_SCREENSHOT_DIR) {
-      await fs.mkdir(process.env.GROOMI_UI_SCREENSHOT_DIR, { recursive: true });
-      await fs.writeFile(
-        path.join(process.env.GROOMI_UI_SCREENSHOT_DIR, 'openrouter-settings.png'),
-        (await window.webContents.capturePage()).toPNG(),
-      );
+      await captureScreenshot('openrouter-settings');
     }
     const backup = await service.backupWorkspace(root);
     await assert.rejects(fs.access(path.join(backup.path, 'openrouter-key.enc')));
@@ -754,6 +889,7 @@ app
         ),
       'review modal animation complete',
     );
+    await captureScreenshot('06-manuscript-review');
     await click('닫기');
     await until(
       () =>

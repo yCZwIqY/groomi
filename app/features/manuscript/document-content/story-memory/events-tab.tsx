@@ -1,8 +1,9 @@
+import { TbPlus, TbTrash } from 'react-icons/tb';
 import { StoryMemoryHeading } from '~/features/manuscript/story-memory/story-memory-heading';
 import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import { reviewCardClass, reviewFieldClass } from './review-tab-styles';
-import { AiOutlineDelete, AiOutlinePlus } from 'react-icons/ai';
+
 import { DnSelect } from '~/components/common/selector';
 
 const IMPORTANCE_OPTIONS = [
@@ -26,7 +27,7 @@ const EventsTab = ({ events, onAdd, onRemove, onChange }: Props) => (
         onClick={onAdd}
         type={'button'}
       >
-        <AiOutlinePlus /> 사건 추가
+        <TbPlus /> 사건 추가
       </PillActionButton>
     </div>
     {events.length === 0 && <StoryMemoryState>등록된 사건이 없습니다.</StoryMemoryState>}
@@ -58,7 +59,7 @@ const EventsTab = ({ events, onAdd, onRemove, onChange }: Props) => (
           className={'self-end'}
           aria-label={'항목 ' + (index + 1) + ' 삭제'}
         >
-          <AiOutlineDelete /> 삭제
+          <TbTrash /> 삭제
         </PillActionButton>
       </div>
     ))}

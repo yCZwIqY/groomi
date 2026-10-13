@@ -1,5 +1,6 @@
+import { TbCalendar, TbClock } from 'react-icons/tb';
 import { useEffect, useState } from 'react';
-import { AiOutlineCalendar, AiOutlineClockCircle } from 'react-icons/ai';
+
 import DnInput from '~/components/common/inputs/dn-input';
 import { updateDocument } from '~/lib/electron/document-api';
 import { formatDate } from '../../../../utils/date-utils';
@@ -82,11 +83,11 @@ const DocumentInfo = ({ workspaceData, onUpdated }: Props) => {
         </div>
         <div className={'flex flex-wrap gap-5 text-sm text-neutral-400 pt-2'}>
           <div className={'flex items-center gap-1'}>
-            <AiOutlineCalendar />
+            <TbCalendar />
             {formatDate(new Date(workspaceData?.createdAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
           </div>
           <div className={'flex items-center gap-1'}>
-            <AiOutlineClockCircle />
+            <TbClock />
             {formatDate(new Date(workspaceData?.updatedAt ?? ''), 'YYYY-MM-DD HH:mm:SS')}
           </div>
         </div>

@@ -1,9 +1,10 @@
+import { TbArrowsMaximize, TbArrowsMinimize, TbDeviceFloppy } from 'react-icons/tb';
 import ManuscriptReviewModal from './review/manuscript-review-modal';
 import { generateManuscriptReview } from '~/lib/electron/review-api';
 import { PillActionButton } from '~/components/common/buttons/pill-action-button';
 import DnEditor from '~/components/editor/dn-editor';
 import { useEffect, useRef, useState } from 'react';
-import { LuMaximize2, LuMinimize2, LuSave } from 'react-icons/lu';
+
 import { useDocumentSave } from './hooks/use-document-save';
 import { getAiStatus, useAiStatus } from '~/hooks/use-ai-status';
 import { Link } from 'react-router';
@@ -301,7 +302,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
                 title='집중 모드 · Esc로 돌아가기'
                 className='flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs text-stone-600 hover:bg-stone-100'
               >
-                {focusMode ? <LuMinimize2 size={15} /> : <LuMaximize2 size={15} />}
+                {focusMode ? <TbArrowsMinimize size={15} /> : <TbArrowsMaximize size={15} />}
                 {focusMode ? '집중 모드 종료' : '집중 모드'}
               </button>
               <PillActionButton
@@ -373,7 +374,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
             loading={saving}
             onClick={handleSave}
           >
-            <LuSave
+            <TbDeviceFloppy
               size={15}
               aria-hidden='true'
             />

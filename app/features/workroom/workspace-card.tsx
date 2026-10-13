@@ -1,9 +1,5 @@
-import {
-  AiOutlineArrowRight,
-  AiOutlineClockCircle,
-  AiOutlineFileText,
-  AiOutlineFolder,
-} from 'react-icons/ai';
+import { TbArrowRight, TbClock, TbFileText, TbFolder } from 'react-icons/tb';
+
 function formatRelativeDate(value?: string) {
   if (!value) return '날짜 정보 없음';
 
@@ -53,9 +49,9 @@ export default function WorkspaceCard({
             isDocument ? 'bg-neutral-100 text-neutral-500' : 'bg-primary-100 text-primary-500'
           }`}
         >
-          {isDocument ? <AiOutlineFileText size={18} /> : <AiOutlineFolder size={18} />}
+          {isDocument ? <TbFileText size={18} /> : <TbFolder size={18} />}
         </div>
-        <AiOutlineArrowRight
+        <TbArrowRight
           className='text-neutral-300 transition-all group-hover:translate-x-1 group-hover:text-primary-500'
           size={16}
         />
@@ -65,7 +61,7 @@ export default function WorkspaceCard({
       </div>
       <div className='mt-1 line-clamp-1 text-xs text-neutral-400'>{item.parentPath}</div>
       <div className='mt-auto flex items-center gap-1.5 pt-3 text-xs text-neutral-400'>
-        <AiOutlineClockCircle />
+        <TbClock />
         {formatRelativeDate(item.updatedAt)}
       </div>
     </button>

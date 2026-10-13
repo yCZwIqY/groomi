@@ -1,3 +1,4 @@
+import { TbArrowLeft, TbFile, TbFolderOpen } from 'react-icons/tb';
 import ModalFrame from '~/components/common/modal/modal-frame';
 import { useWorkspacePath } from '~/hooks';
 import { useModal } from '~/hooks/use-modal';
@@ -10,8 +11,6 @@ import { DnChipGroup } from '~/components/common/chip-group';
 import { showToast } from '~/lib/toast-manager';
 import { createDocument } from '~/lib/electron/document-api';
 import { getWorkspaceInfo } from '~/lib/electron/workspace-api';
-import { AiOutlineArrowLeft, AiOutlineFolderOpen } from 'react-icons/ai';
-import { CiFileOn } from 'react-icons/ci';
 
 type NodeType = 'workspace' | 'document';
 
@@ -66,7 +65,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                 onClick={() => setNodeType(null)}
                 className={'flex items-center gap-1 text-sm text-stone-500'}
               >
-                <AiOutlineArrowLeft /> 뒤로
+                <TbArrowLeft /> 뒤로
               </button>
             ) : (
               '새 문서 혹은 그룹 추가'
@@ -105,7 +104,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                   }
                   variant={'outlined'}
                 >
-                  <AiOutlineFolderOpen size={30} />
+                  <TbFolderOpen size={30} />
                   그룹
                 </DnButton>
                 <DnButton
@@ -115,7 +114,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
                   }
                   variant={'outlined'}
                 >
-                  <CiFileOn size={30} />
+                  <TbFile size={30} />
                   회차
                 </DnButton>
               </div>
@@ -207,7 +206,7 @@ const AddWorkspaceButton = ({ targetPath, children, onCreated }: Props) => {
               'flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary-600'
             }
           >
-            <AiOutlineFolderOpen size={16} />
+            <TbFolderOpen size={16} />
           </span>
         )}
       </button>

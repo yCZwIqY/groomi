@@ -1,5 +1,5 @@
+import { TbChevronDown } from 'react-icons/tb';
 import { useId, useState, type ReactNode } from 'react';
-import { FiChevronDown } from 'react-icons/fi';
 
 interface Props {
   title: string;
@@ -44,7 +44,7 @@ export default function SettingsSection({
             }
           >
             {expanded ? '접기' : '펼치기'}
-            <FiChevronDown className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <TbChevronDown className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
         )}
       </header>

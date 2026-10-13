@@ -43,6 +43,18 @@ Vite 개발 서버와 Electron을 동시에 실행합니다.
 pnpm dev
 ```
 
+## 페이지별 UI 스크린샷
+
+```bash
+pnpm test:ui:screenshots
+```
+
+임시 작업 폴더의 테스트 원고로 UI 테스트를 실행하며, `release/ui-screenshots/`에
+작업실, 분할 편집, 원고 편집, 초안 편집, 설정, AI 리뷰와 라이선스 모달을 PNG로 저장합니다.
+스크린샷 모드의 창 크기는 1920×1080이며 PNG에는 창 테두리를 제외한 앱 화면이 담깁니다.
+AI 화면은 모의 응답으로 촬영하며, 실제 API 키·개인 원고·유료 AI 호출을 사용하지 않습니다.
+`GROOMI_UI_SCREENSHOT_DIR` 환경변수로 저장 폴더를 바꿀 수 있습니다.
+
 ## 타입 체크
 
 ```bash
@@ -63,7 +75,44 @@ Windows 설치파일(NSIS) 생성:
 pnpm dist:win
 ```
 
-빌드 산출물은 `release/` 디렉터리에 `그루미-{version}-설치파일.exe` 형태로 생성됩니다.
+Microsoft Store용 MSIX 패키지(x64) 생성:
+
+```bash
+pnpm dist:msix
+```
+
+Windows에서 실행하며, 결과는 `release/groomi-{version}-x64.msix`입니다.
+electron-builder 26의 `appx` 타깃과 MakeAppx를 사용해 `.msix` 패키지를 생성합니다.
+Store 설정은 `electron-builder.msix.cjs`에 있으며, Partner Center의 앱 식별 정보와
+일치해야 합니다. 현재 Identity Name은 `Jiyoon.Groomi`, Publisher Display Name은
+`Jiyoon`입니다. 타일 및 시작 메뉴 이미지는 `assets/msix/appx/`에 있습니다.
+
+이 명령은 Store 제출용 미서명 패키지를 생성합니다. Microsoft가 심사 후 서명하므로
+Store 제출을 위해 별도 인증서를 구매할 필요는 없습니다. 미서명 파일은 일반적인
+더블클릭 설치가 불가능합니다. 로컬 설치 테스트에는 별도 테스트 서명과 인증서 신뢰
+설정 또는 Store의 비공개 배포를 사용하세요. 테스트 서명 키를 저장소에 커밋하지 마세요.
+
+제출 전 Windows App Certification Kit와 실제 MSIX 설치 환경에서 시작 메뉴 실행,
+원고 저장·복원, 앱 업데이트, Ollama 및 OpenRouter 연결을 검증하세요. 심사 메모에는
+AI 기능의 외부 의존성과 테스트 방법을 안내하고, `runFullTrust` 권한이 Electron 앱의
+실행과 사용자가 선택한 원고 폴더·SQLite 데이터 처리에 필요함을 설명하세요.
+
+NSIS 설치파일은 `release/groomi-{version}.exe`, MSIX 패키지는
+`release/groomi-{version}-x64.msix`로 생성됩니다.
+
+## 라이선스 및 출처 고지
+
+설정의 **라이선스 및 출처 보기**에서 라이브러리·폰트·아이콘의 버전, 라이선스,
+저작권 고지와 출처를 검색할 수 있습니다. 원문은 앱에 포함되므로 오프라인에서도
+열립니다. 긴 원문은 페이지를 나눠 표시합니다.
+
+UI 아이콘은 MIT 라이선스의 Tabler Icons로 통일했습니다. 사용하지 않는 다른
+`react-icons` 컬렉션은 배포 패키지에서 제외하며, 빌드 시 다른 세트의 import를 검사합니다.
+`pnpm licenses:generate`는 `public/licenses/`를 생성하고, 개발·빌드 명령에서도 자동 실행됩니다.
+누락된 원문을 보완하는 파일과 출처는 `assets/licenses/`에 있습니다.
+`jy-headless`는 저작자 확인을 받아 MIT 저작권 고지를 보완했습니다.
+별도 고지 파일이 없는 `@epic-web/invariant`는 표준 MIT 본문과 메타데이터를
+표시하며, 원저작권 고지 확인이 필요하다는 표시를 유지합니다.
 
 ## 프로젝트 구조
 
@@ -88,9 +137,9 @@ electron/                # Electron 메인 프로세스
 
 ## 주요 라우트
 
-| 경로 | 설명 |
-| --- | --- |
-| `/workroom` | 최근 작업한 워크스페이스·문서를 보여주는 대시보드 |
+| 경로                             | 설명                                                  |
+| -------------------------------- | ----------------------------------------------------- |
+| `/workroom`                      | 최근 작업한 워크스페이스·문서를 보여주는 대시보드     |
 | `/manuscript`, `/manuscript/:id` | 워크스페이스(폴더) 탐색 또는 문서 작성/댓글 생성 화면 |
-| `/setting` | AI 모델 설정, 댓글 스타일 예시 관리, 휴지통 |
-| `/design-system` | 내부 UI 컴포넌트 확인용 페이지 |
+| `/setting`                       | AI 모델 설정, 댓글 스타일 예시 관리, 휴지통           |
+| `/design-system`                 | 내부 UI 컴포넌트 확인용 페이지                        |

@@ -1,6 +1,6 @@
+import { TbChevronRight } from 'react-icons/tb';
 import { Fragment } from 'react';
 import { Link } from 'react-router';
-import { AiOutlineRight } from 'react-icons/ai';
 
 export type BreadcrumbItem = {
   label: string;
@@ -32,14 +32,18 @@ const Breadcrumb = ({ items, className }: Props) => {
               <li className={'min-w-0'}>
                 {item.to && !isLast ? (
                   <Link
-                    className={'truncate rounded-full px-2 py-1 transition-colors hover:bg-white/80 hover:text-stone-900'}
+                    className={
+                      'truncate rounded-full px-2 py-1 transition-colors hover:bg-white/80 hover:text-stone-900'
+                    }
                     to={item.to}
                   >
                     {item.label}
                   </Link>
                 ) : item.onClick && !isLast ? (
                   <button
-                    className={'truncate rounded-full px-2 py-1 transition-colors hover:bg-white/80 hover:text-stone-900'}
+                    className={
+                      'truncate rounded-full px-2 py-1 transition-colors hover:bg-white/80 hover:text-stone-900'
+                    }
                     onClick={item.onClick}
                     type={'button'}
                   >
@@ -56,7 +60,7 @@ const Breadcrumb = ({ items, className }: Props) => {
                   aria-hidden={'true'}
                   className={'text-[11px] text-stone-300'}
                 >
-                  <AiOutlineRight />
+                  <TbChevronRight />
                 </li>
               )}
             </Fragment>

@@ -1,7 +1,8 @@
+import { TbPlus } from 'react-icons/tb';
 import HomeSection from '~/features/workroom/home-section';
 import BackupReminder from '~/features/workroom/backup-reminder';
 import { useEffect, useMemo, useState } from 'react';
-import { AiOutlinePlus } from 'react-icons/ai';
+
 import { useNavigate } from 'react-router';
 import AddWorkspaceButton from '~/components/add-workspace-modal/add-workspace-button';
 import { useWorkspacePath } from '~/hooks';
@@ -86,7 +87,7 @@ const Workroom = () => {
         <div>
           <AddWorkspaceButton targetPath={workspacePath}>
             <span className='flex h-9 items-center gap-2 rounded-md bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600'>
-              <AiOutlinePlus size={17} />새 작업 시작
+              <TbPlus size={17} />새 작업 시작
             </span>
           </AddWorkspaceButton>
         </div>

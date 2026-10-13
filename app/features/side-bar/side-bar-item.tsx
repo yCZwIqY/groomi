@@ -1,9 +1,10 @@
+import { TbChevronUp, TbFile, TbFolder, TbFolderOpen, TbPlus } from 'react-icons/tb';
 import { useEffect, useState } from 'react';
-import { AiOutlineFile, AiOutlineFolder, AiOutlineFolderOpen, AiOutlinePlus } from 'react-icons/ai';
+
 import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
 import { useNavigate } from 'react-router';
 import AddWorkspaceButton from '~/components/add-workspace-modal/add-workspace-button';
-import { BiUpArrow } from 'react-icons/bi';
+
 import DnIconButton from '~/components/common/buttons/dn-icon-button';
 
 type Props = WorkspaceNode & {};
@@ -47,13 +48,7 @@ const SideBarItem = (fileTreeNode: Props) => {
         <div
           className={`text-[16px] transition-transform duration-300 ${isSelected ? 'scale-110 text-primary-500' : 'group-hover:scale-105'}`}
         >
-          {type === 'document' ? (
-            <AiOutlineFile />
-          ) : open ? (
-            <AiOutlineFolderOpen />
-          ) : (
-            <AiOutlineFolder />
-          )}
+          {type === 'document' ? <TbFile /> : open ? <TbFolderOpen /> : <TbFolder />}
         </div>
         <div
           className={`flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden transition-all duration-300 max-w-[220px] opacity-100`}
@@ -63,7 +58,7 @@ const SideBarItem = (fileTreeNode: Props) => {
             <div
               className={`text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
             >
-              <BiUpArrow />
+              <TbChevronUp />
             </div>
           )}
         </div>
@@ -74,7 +69,7 @@ const SideBarItem = (fileTreeNode: Props) => {
               size={'s'}
               variant={'ghost'}
             >
-              <AiOutlinePlus />
+              <TbPlus />
             </DnIconButton>
           </AddWorkspaceButton>
         )}

@@ -41,6 +41,8 @@ export function createMainWindow() {
     },
   });
 
+  mainWindow.removeMenu();
+
   if (process.platform === 'win32') {
     mainWindow.setAppDetails({
       appId: 'com.groomi.app',

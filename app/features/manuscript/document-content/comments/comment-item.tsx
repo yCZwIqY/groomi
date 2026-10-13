@@ -1,5 +1,6 @@
+import { TbTrash } from 'react-icons/tb';
 import DnCheckbox from '~/components/common/dn-checkbox';
-import { AiOutlineDelete } from 'react-icons/ai';
+
 import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
 import { StoryMemoryCard } from '~/features/manuscript/story-memory/story-memory-card';
 import { StoryMemoryTag } from '~/features/manuscript/story-memory/story-memory-tag';
@@ -73,7 +74,7 @@ const CommentItem = ({
               'flex size-7 shrink-0 items-center justify-center rounded-lg text-stone-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-primary-500'
             }
           >
-            <AiOutlineDelete size={16} />
+            <TbTrash size={16} />
           </span>
         </ConfirmModalWrapper>
       )}

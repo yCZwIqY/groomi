@@ -1,6 +1,7 @@
+import { TbChevronDown } from 'react-icons/tb';
 import type { HTMLAttributes } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { FiChevronDown } from 'react-icons/fi';
+
 import { tv } from 'tailwind-variants/lite';
 import DnInput from '../inputs/dn-input';
 
@@ -204,7 +205,7 @@ const DnSelect = ({
               }
             }}
           >
-            <FiChevronDown className={classes.icon()} />
+            <TbChevronDown className={classes.icon()} />
           </button>
         </div>
       ) : (
@@ -220,7 +221,7 @@ const DnSelect = ({
           <span className={selectedOption ? classes.triggerText() : classes.placeholder()}>
             {selectedOption?.label ?? placeholder}
           </span>
-          <FiChevronDown className={classes.icon()} />
+          <TbChevronDown className={classes.icon()} />
         </button>
       )}
 

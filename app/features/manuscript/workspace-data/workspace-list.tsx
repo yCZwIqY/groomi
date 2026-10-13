@@ -1,6 +1,7 @@
+import { TbFile, TbFolder } from 'react-icons/tb';
 import { formatDate } from '../../../../utils/date-utils';
 import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
-import { AiOutlineFile, AiOutlineFolder } from 'react-icons/ai';
+
 import { showToast } from '~/lib/toast-manager';
 import ConfirmModalWrapper from '~/components/confirm-modal/confirm-modal-wrapper';
 import { removeDocument } from '~/lib/electron/document-api';
@@ -82,9 +83,9 @@ const WorkspaceList = ({ tree }: Props) => {
                   onClick={() => setSelectedWorkspace(item)}
                 >
                   {item.type === 'document' ? (
-                    <AiOutlineFile color={'var(--color-gray-400)'} />
+                    <TbFile color={'var(--color-gray-400)'} />
                   ) : (
-                    <AiOutlineFolder color={'var(--color-primary-500)'} />
+                    <TbFolder color={'var(--color-primary-500)'} />
                   )}
                   {item.name.split('.')[0]}
                 </button>

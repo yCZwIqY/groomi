@@ -1,8 +1,8 @@
+import { TbTypography, TbX } from 'react-icons/tb';
 import type { Editor } from '@tiptap/core';
 import { closeHistory } from '@tiptap/pm/history';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LuALargeSmall, LuX } from 'react-icons/lu';
 
 const symbolGroups = [
   {
@@ -102,7 +102,7 @@ const EditorSymbols = ({ editor }: { editor: Editor | null }) => {
         onClick={() => setOpen(!open)}
         className='flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-stone-500 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-30'
       >
-        <LuALargeSmall
+        <TbTypography
           size={17}
           aria-hidden='true'
         />{' '}
@@ -129,7 +129,7 @@ const EditorSymbols = ({ editor }: { editor: Editor | null }) => {
                 }}
                 className='rounded p-1 hover:bg-stone-100'
               >
-                <LuX size={15} />
+                <TbX size={15} />
               </button>
             </div>
             {symbolGroups.map((group) => (

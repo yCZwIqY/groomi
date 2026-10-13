@@ -2,6 +2,7 @@ import TrashNode from '~/features/settings/trash-node/trash-node';
 import AiSetting from '~/features/settings/ai-setting/ai-setting';
 import CommentStyleExampleSetting from '~/features/settings/ai-setting/comment-style-example-setting';
 import WorkspaceBackup from '~/features/settings/workspace-backup';
+import LicenseSettings from '~/features/settings/license-settings';
 
 const Setting = () => {
   return (
@@ -18,6 +19,7 @@ const Setting = () => {
       </div>
       <CommentStyleExampleSetting />
       <WorkspaceBackup />
+      <LicenseSettings />
     </div>
   );
 };

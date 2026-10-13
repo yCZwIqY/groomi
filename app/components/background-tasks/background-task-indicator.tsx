@@ -1,9 +1,6 @@
+import { TbCircleCheck, TbCircleX, TbLoader2 } from 'react-icons/tb';
 import { useState } from 'react';
-import {
-  AiOutlineCheckCircle,
-  AiOutlineCloseCircle,
-  AiOutlineLoading3Quarters,
-} from 'react-icons/ai';
+
 import { useBackgroundTasks } from '~/stores/use-background-tasks';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -45,13 +42,11 @@ const BackgroundTaskIndicator = () => {
         type={'button'}
       >
         {runningCount > 0 ? (
-          <AiOutlineLoading3Quarters
-            className={'animate-[spin_1.4s_linear_infinite] text-primary-500'}
-          />
+          <TbLoader2 className={'animate-[spin_1.4s_linear_infinite] text-primary-500'} />
         ) : errorCount > 0 ? (
-          <AiOutlineCloseCircle className={'text-red-600'} />
+          <TbCircleX className={'text-red-600'} />
         ) : (
-          <AiOutlineCheckCircle className={'text-primary-500'} />
+          <TbCircleCheck className={'text-primary-500'} />
         )}
         <span className={'typo-b6-b text-stone-700'}>
           {runningCount > 0 ? `백그라운드 작업 ${runningCount}건 진행 중` : '백그라운드 작업'}
@@ -87,16 +82,14 @@ const BackgroundTaskIndicator = () => {
                 key={task.id}
               >
                 {task.status === 'running' && (
-                  <AiOutlineLoading3Quarters
+                  <TbLoader2
                     className={'shrink-0 animate-[spin_1.4s_linear_infinite] text-primary-500'}
                   />
                 )}
                 {task.status === 'done' && (
-                  <AiOutlineCheckCircle className={'shrink-0 text-primary-500'} />
+                  <TbCircleCheck className={'shrink-0 text-primary-500'} />
                 )}
-                {task.status === 'error' && (
-                  <AiOutlineCloseCircle className={'shrink-0 text-red-500'} />
-                )}
+                {task.status === 'error' && <TbCircleX className={'shrink-0 text-red-500'} />}
                 <div className={'flex min-w-0 flex-1 flex-col'}>
                   <div className={'truncate typo-b6-b text-stone-800'}>{task.documentTitle}</div>
                   <div className={'typo-b6-r text-stone-400'}>

@@ -1,6 +1,6 @@
 {
   "name": "groomi",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "type": "module",
   "productName": "Groomi",
@@ -8,11 +8,14 @@
   "scripts": {
     "test:release": "pnpm electron:build && node --test tests/release-safety.test.mjs",
     "test:ui": "pnpm build && node scripts/run-electron-test.mjs",
+    "test:ui:screenshots": "pnpm build && node scripts/run-electron-test.mjs --screenshots",
     "test:packaged": "node scripts/run-electron-test.mjs --packaged",
-    "build": "pnpm electron:build && react-router build",
+    "build": "pnpm electron:build && pnpm licenses:generate && react-router build",
+    "licenses:generate": "node scripts/generate-license-notices.mjs",
     "dist:win": "pnpm build && electron-builder --win nsis",
-    "dev": "pnpm electron:build && concurrently \"vite\" \"cross-env BROWSER=none electron dist-electron/main.js\"",
-    "start": "pnpm electron:build && concurrently \"vite\" \"cross-env BROWSER=none electron dist-electron/main.js\"",
+    "dist:msix": "pnpm build && electron-builder --config electron-builder.msix.cjs --win appx --x64 --publish never",
+    "dev": "pnpm electron:build && pnpm licenses:generate && concurrently \"vite\" \"cross-env BROWSER=none electron dist-electron/main.js\"",
+    "start": "pnpm electron:build && pnpm licenses:generate && concurrently \"vite\" \"cross-env BROWSER=none electron dist-electron/main.js\"",
     "electron:build": "tsc -p tsconfig.electron.json",
     "typecheck": "react-router typegen && tsc && tsc -p tsconfig.electron.json --noEmit"
   },
@@ -73,7 +76,8 @@
       "assets/fonts/**/*",
       "build/client/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/react-icons/**/*"
     ],
     "asarUnpack": [
       "node_modules/**/*.node"

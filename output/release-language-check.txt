@@ -1,0 +1,474 @@
+[openrouter-error] {
+  endpoint: 'chat/completions',
+  model: 'test/model',
+  httpStatus: 429,
+  code: undefined,
+  message: undefined,
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+[openrouter-usage] 사용량 기록 저장에 실패했습니다.
+✔ OpenRouter usage persists concurrent requests per key without saving credentials or prose (30.8549ms)
+✔ generation records API attempts and tokens before response validation without losing successful output (11.8347ms)
+✔ character matching normalizes spacing and uses parenthetical aliases only when unambiguous (0.2022ms)
+✔ story memory parses reasoning and fences, validates enums and maps only registered aliases (0.6382ms)
+✔ story memory providers share the schema and explicit generation options (0.3709ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2682,
+  outputCharacters: 7,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2682,
+  outputCharacters: 61,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2682,
+  outputCharacters: 7,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2682,
+  outputCharacters: 7,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ generation retries validation once and preserves saved memory on final failure (253.4227ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 6229,
+  outputCharacters: 109,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ generation looks back across gaps, bounds events, and detects changed earlier chapters (353.8343ms)
+✔ generation warns when previous chapters have no memory and save rejects forged identities (199.1652ms)
+✔ OpenRouter credentials stay encrypted outside the workspace and survive failed replacement (6.4428ms)
+[openrouter-error] {
+  endpoint: 'chat/completions',
+  model: 'test/model',
+  httpStatus: 401,
+  code: undefined,
+  message: undefined,
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+[openrouter-error] {
+  endpoint: 'chat/completions',
+  model: 'test/model',
+  httpStatus: 402,
+  code: undefined,
+  message: undefined,
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+[openrouter-error] {
+  endpoint: 'chat/completions',
+  model: 'test/model',
+  httpStatus: 429,
+  code: undefined,
+  message: undefined,
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+[openrouter-error] {
+  endpoint: 'chat/completions',
+  model: 'test/model',
+  httpStatus: 503,
+  code: undefined,
+  message: undefined,
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+[openrouter-error] {
+  endpoint: 'key',
+  model: undefined,
+  httpStatus: 200,
+  code: 402,
+  message: '[REDACTED]',
+  provider: undefined,
+  raw: undefined,
+  requestId: undefined,
+  retryAfter: undefined,
+  rateLimit: undefined,
+  rateRemaining: undefined,
+  rateReset: undefined
+}
+✔ AI provider settings retain separate models across switching and backup restore (247.6599ms)
+✔ OpenRouter error logs explain provider limits without exposing keys or manuscript text (0.9198ms)
+✔ OpenRouter sends JSON requests, normalizes usage, and never retries billable errors (1.3811ms)
+✔ OpenRouter model list excludes models without text JSON output (0.3085ms)
+✔ AI input removes editor formatting while preserving prose and deduplicating scripts (0.1031ms)
+✔ story memory requires manuscript text and explains that drafts are excluded (239.0125ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2688,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2688,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2688,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2688,
+  outputCharacters: 58,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ story memory regeneration excludes its own history and drafts (long) (375.825ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2500,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2500,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2500,
+  outputCharacters: 175,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2500,
+  outputCharacters: 58,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ story memory regeneration excludes its own history and drafts (short) (377.1522ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 2686,
+  outputCharacters: 161,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ first generation assigns application IDs to new records (210.501ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 4851,
+  outputCharacters: 47,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 4849,
+  outputCharacters: 47,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ group characters and hooks preserve chapter history and exclude future information (296.6279ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 3385,
+  outputCharacters: 123,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 3385,
+  outputCharacters: 65,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 3406,
+  outputCharacters: 88,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 3406,
+  outputCharacters: 88,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ AI deltas preserve prior chapters but replace regenerated chapter changes (385.346ms)
+✔ batch comment deletion is atomic and restricted to the selected chapter (1196.9355ms)
+✔ legacy workspace database migrates to Groomi without losing manuscripts or its original database (235.4188ms)
+✔ group memory transaction failure preserves manuscript and chapter history (120.929ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 4673,
+  outputCharacters: 47,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 3016,
+  outputCharacters: 58,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ resolved hooks persist, remain editable, and are excluded from comment context (361.9377ms)
+[ai-generation] {
+  task: 'story-memory',
+  model: 'ollama:test-model',
+  elapsedMs: 45,
+  inputCharacters: 2688,
+  outputCharacters: 104,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ generated memory persists without overwriting manuscript edits and stays within its group (459.9644ms)
+✔ AI output language persists independently of provider settings and is pinned per story (161.8137ms)
+✔ existing Korean story memory takes precedence over a new English preference (119.7471ms)
+✔ English prompts specify output language while preserving schema enums and source quotations (0.9235ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 7785,
+  outputCharacters: 1454,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 5693,
+  outputCharacters: 446,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ comment personas balance interests and reactions independently of expertise (259.7838ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 5095,
+  outputCharacters: 380,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 5095,
+  outputCharacters: 338,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ excess generated comments are trimmed while missing comments still fail (172.1222ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 5236,
+  outputCharacters: 514,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 4473,
+  outputCharacters: 19,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ selected persona chips limit slots, style examples and saved metadata (198.5126ms)
+✔ corrupt or missing manuscripts fail visibly and cannot be overwritten silently (138.1782ms)
+✔ previous-save recovery preserves the damaged file (222.3428ms)
+✔ metadata failure rolls back both DB and manuscript file (124.1662ms)
+✔ interrupted save selects the previous complete version (107.0409ms)
+✔ interrupted save selects the committed complete version (107.8567ms)
+✔ file replacement failure leaves the original intact and rolls DB back (123.5328ms)
+✔ group restore keeps individually trashed chapters and subgroups in trash (215.226ms)
+✔ deletion batches remain distinct after a clock change (0.1291ms)
+✔ failed permanent deletion retains original files and recoverable DB entry (163.3191ms)
+✔ permanent deletion retries interrupted file cleanup on the next initialization (151.1246ms)
+✔ backup restores manuscripts, trash, comments, settings and images into a new folder (306.8161ms)
+✔ invalid restore and nested backup leave the active workspace unchanged (233.9694ms)
+✔ concurrent content and story-memory updates do not overwrite each other (183.1609ms)
+✔ version 1 workspace upgrades without losing existing manuscripts or settings (222.158ms)
+✔ newer workspace format is rejected without downgrading its schema (105.6728ms)
+[ai-generation] {
+  task: 'comments',
+  model: 'ollama:test-model',
+  elapsedMs: 0,
+  inputCharacters: 4283,
+  outputCharacters: 50,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  modelDurationMs: undefined,
+  modelLoadMs: undefined
+}
+✔ style examples upgrade legacy ages and preserve old reading experience metadata (216.0302ms)
+✔ backup reminder persists per workspace and only advances after successful backup (172.6468ms)
+✔ manuscript review rejects draft-only documents without calling AI (120.3336ms)
+✔ manuscript review validates all criteria, retries once and never persists results (182.0954ms)
+✔ style example batch deletion is atomic and validates selection (145.0966ms)
+ℹ tests 51
+ℹ suites 0
+ℹ pass 51
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9638.2243

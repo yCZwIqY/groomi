@@ -40,6 +40,7 @@ const channels = {
   },
   setting: {
     getInfo: 'setting:get-info',
+    updateOutputLanguage: 'setting:update-output-language',
     updateAiSettings: 'setting:update-ai-settings',
     saveOpenRouterKey: 'setting:save-openrouter-key',
     deleteOpenRouterKey: 'setting:delete-openrouter-key',

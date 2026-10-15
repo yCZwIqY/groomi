@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import useBackupStatus from '~/hooks/use-backup-status';
 import SettingsSection from '~/components/common/settings-section';
 import { useState } from 'react';
@@ -31,7 +32,12 @@ export default function WorkspaceBackup() {
         }
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '백업·복원에 실패했습니다.', 'danger');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:BACKUP_RESTORE_FAILED'),
+        'danger',
+      );
     } finally {
       setBusy(false);
     }

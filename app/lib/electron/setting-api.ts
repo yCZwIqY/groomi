@@ -31,3 +31,7 @@ export async function listOpenRouterModels() {
 export async function getOpenRouterUsage() {
   return requireElectronApi().getOpenRouterUsage();
 }
+
+export async function updateOutputLanguage(language: 'auto' | 'ko' | 'en') {
+  return requireElectronApi().updateOutputLanguage(language);
+}

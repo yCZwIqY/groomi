@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -15,7 +16,7 @@ export function createFileActions(context: WorkspaceServiceContext) {
     const relativePath = path.relative(imagesDirectoryPath, filePath);
 
     if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-      throw new Error('이미지 폴더 밖의 파일은 삭제할 수 없습니다.');
+      throw new AppError('IMAGE_DELETE_OUTSIDE_FOLDER');
     }
 
     return deleteFile(filePath);
@@ -33,11 +34,11 @@ export function createFileActions(context: WorkspaceServiceContext) {
     const safeFileName = path.basename(fileName);
     const allowedExtensions = new Set(['.gif', '.jpeg', '.jpg', '.png', '.webp']);
     if (!allowedExtensions.has(path.extname(safeFileName).toLowerCase())) {
-      throw new Error('지원하지 않는 이미지 형식입니다.');
+      throw new AppError('IMAGE_FORMAT_UNSUPPORTED');
     }
 
     if (buffer.length > 10 * 1024 * 1024) {
-      throw new Error('이미지는 10MB 이하여야 합니다.');
+      throw new AppError('IMAGE_TOO_LARGE');
     }
 
     const targetPath = path.join(imagesDirectoryPath, `${crypto.randomUUID()}-${safeFileName}`);

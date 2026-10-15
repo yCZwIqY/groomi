@@ -1,3 +1,4 @@
+import { useTranslation } from '~/hooks/use-translation';
 import WorkspaceCard from './workspace-card';
 export default function HomeSection({
   title,
@@ -14,6 +15,7 @@ export default function HomeSection({
   emptyMessage: string;
   onClick: (item: WorkspaceNode) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <section className='ui-card w-full'>
       <div className='border-b border-neutral-200 px-4 py-3'>
@@ -32,7 +34,7 @@ export default function HomeSection({
         </div>
       ) : (
         <div className='flex min-h-28 items-center justify-center px-6 text-center text-sm text-neutral-400'>
-          {loading ? '워크스페이스를 불러오는 중입니다.' : emptyMessage}
+          {loading ? t('workroom.loading') : emptyMessage}
         </div>
       )}
     </section>

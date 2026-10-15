@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import channels from '../common/channels.cjs';
 import type { createWorkspaceService } from '../services/workspace-service.js';
 import { optionalString, requireString, secureHandle } from './ipc-guards.js';
@@ -16,12 +17,17 @@ export function registerSettingIpcHandlers(
     return publicSettings();
   });
 
+  secureHandle(channels.setting.updateOutputLanguage, async (_, language) => {
+    if (!['auto', 'ko', 'en'].includes(language)) throw new AppError('INVALID_OUTPUT_LANGUAGE');
+    await workspaceService.updateOutputLanguage(language);
+    return publicSettings();
+  });
   secureHandle(channels.setting.updateAiSettings, async (_, provider, model) => {
     if (provider !== 'ollama' && provider !== 'openrouter')
-      throw new Error('잘못된 AI 제공자입니다.');
+      throw new AppError('INVALID_AI_PROVIDER');
     const modelId = optionalString(model, 'model')?.trim() || null;
     if (modelId && (modelId.length > 200 || !/^[a-zA-Z0-9/_.:+-]+$/.test(modelId))) {
-      throw new Error('잘못된 모델 ID입니다.');
+      throw new AppError('INVALID_MODEL_ID');
     }
     await workspaceService.updateAiSettings(provider, modelId);
     return publicSettings();

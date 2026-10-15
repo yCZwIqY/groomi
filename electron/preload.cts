@@ -43,6 +43,7 @@ const channels = {
   },
   setting: {
     getInfo: 'setting:get-info',
+    updateOutputLanguage: 'setting:update-output-language',
     updateAiSettings: 'setting:update-ai-settings',
     saveOpenRouterKey: 'setting:save-openrouter-key',
     deleteOpenRouterKey: 'setting:delete-openrouter-key',
@@ -159,6 +160,8 @@ const documentApi = {
 };
 
 const settingApi = {
+  updateOutputLanguage: (language: 'auto' | 'ko' | 'en') =>
+    ipcRenderer.invoke(channels.setting.updateOutputLanguage, language),
   updateAiSettings: (provider: 'ollama' | 'openrouter', model: string | null) =>
     ipcRenderer.invoke(channels.setting.updateAiSettings, provider, model),
   saveOpenRouterKey: (key: string) => ipcRenderer.invoke(channels.setting.saveOpenRouterKey, key),

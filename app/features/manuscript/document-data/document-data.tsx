@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useEffect, useState } from 'react';
 import { getDocument, recoverDocument } from '~/lib/electron-api';
 import { useSelectedWorkspace } from '~/stores/use-selected-workspace';
@@ -31,7 +32,11 @@ export const DocumentData = () => {
       })
       .catch((error: unknown) => {
         if (isMounted)
-          setLoadError(error instanceof Error ? error.message : '원고를 열지 못했습니다.');
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : getErrorMessage('GROOMI_ERROR:DOCUMENT_OPEN_FAILED'),
+          );
       });
 
     return () => {
@@ -67,7 +72,9 @@ export const DocumentData = () => {
                 }
               } catch (error) {
                 setLoadError(
-                  error instanceof Error ? error.message : '이전 저장본을 복구하지 못했습니다.',
+                  error instanceof Error
+                    ? error.message
+                    : getErrorMessage('GROOMI_ERROR:DOCUMENT_RECOVERY_FAILED'),
                 );
               } finally {
                 setRecovering(false);

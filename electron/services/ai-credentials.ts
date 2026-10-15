@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -12,7 +13,7 @@ export function createAiCredentials(
 ) {
   const assertEncryption = () => {
     if (!encryption.isEncryptionAvailable()) {
-      throw new Error('이 기기에서 API 키 암호화 저장을 사용할 수 없습니다.');
+      throw new AppError('KEY_ENCRYPTION_UNAVAILABLE');
     }
   };
   return {
@@ -22,7 +23,7 @@ export function createAiCredentials(
         return true;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-        throw new Error('API 키 저장 상태를 확인하지 못했습니다.');
+        throw new AppError('KEY_STATUS_FAILED');
       }
     },
     async readKey() {
@@ -30,14 +31,14 @@ export function createAiCredentials(
       try {
         return encryption.decryptString(await fs.readFile(filePath));
       } catch {
-        throw new Error('OpenRouter API 키를 읽지 못했습니다. 설정에서 다시 등록해주세요.');
+        throw new AppError('KEY_READ_FAILED');
       }
     },
     async saveKey(value: string) {
       assertEncryption();
       const key = value.trim();
       if (!key || key.length > 4096 || /\s/.test(key)) {
-        throw new Error('올바른 API 키를 입력해주세요.');
+        throw new AppError('KEY_INVALID');
       }
       const encrypted = encryption.encryptString(key);
       await fs.mkdir(path.dirname(filePath), { recursive: true });

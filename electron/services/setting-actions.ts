@@ -38,7 +38,16 @@ export function createSettingActions(context: WorkspaceServiceContext) {
     return getSettingInfo();
   }
 
+  async function updateOutputLanguage(language: 'auto' | 'ko' | 'en') {
+    const workspacePath = await context.getCurrentWorkspacePath();
+    await context.withWorkspaceRepositories(workspacePath, async ({ settingInfo }) => {
+      await settingInfo.updateOutputLanguage(language);
+    });
+    return getSettingInfo();
+  }
+
   return {
+    updateOutputLanguage,
     updateAiSettings,
     getSettingInfo,
     updateSelectedEmbeddingModel,

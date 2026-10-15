@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useEffect, useRef, useState } from 'react';
 import ModalFrame from '~/components/common/modal/modal-frame';
 import { loadLicenseIndex, type LicenseNotice } from './license-notices';
@@ -38,7 +39,7 @@ export default function LicenseNoticesModal({ onClose }: { onClose: () => void }
     setText('라이선스 원문을 불러오는 중입니다.');
     fetch(`/licenses/${selected.file}`, { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error('라이선스 원문을 불러오지 못했습니다.');
+        if (!response.ok) throw new Error(getErrorMessage('GROOMI_ERROR:LICENSE_LOAD_FAILED'));
         return response.text();
       })
       .then(setText)

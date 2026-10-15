@@ -1,9 +1,11 @@
+import { getErrorMessage } from '~/lib/app-error';
 import toast from 'react-hot-toast';
 
 export const showToast = (
   message: string,
   type: 'default' | 'success' | 'warning' | 'danger' = 'default',
 ) => {
+  if (message.includes('GROOMI_ERROR:')) message = getErrorMessage(message);
   if (type === 'default') {
     toast(message, {
       style: {

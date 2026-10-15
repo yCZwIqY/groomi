@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { TbCalendar, TbClock } from 'react-icons/tb';
 import { useEffect, useState } from 'react';
 
@@ -36,7 +37,7 @@ const DocumentInfo = ({ workspaceData, onUpdated }: Props) => {
       const updatedWorkspace = await updateDocument(workspaceData.path, data);
       if (updatedWorkspace) onUpdated?.(updatedWorkspace);
     } catch {
-      showToast('제목 저장에 실패했습니다. 입력 내용은 유지됩니다.', 'danger');
+      showToast(getErrorMessage('GROOMI_ERROR:TITLE_SAVE_FAILED'), 'danger');
     }
   };
 

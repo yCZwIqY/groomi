@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { App } from 'electron';
@@ -26,7 +27,7 @@ export function createWorkspaceServiceContext(app: Pick<App, 'getPath'>) {
     const isOutside = relativePath.startsWith('..') || path.isAbsolute(relativePath);
 
     if (isOutside) {
-      throw new Error('작업 폴더 밖의 경로에는 접근할 수 없습니다.');
+      throw new AppError('WORKSPACE_PATH_OUTSIDE');
     }
   }
 
@@ -110,10 +111,7 @@ export function createWorkspaceServiceContext(app: Pick<App, 'getPath'>) {
             item.documentId,
           ]);
         } catch (error) {
-          throw new Error(
-            '항목은 삭제했지만 원고 파일을 정리하지 못했습니다. 파일을 사용하는 프로그램을 닫고 그루미를 다시 실행하면 재시도합니다.',
-            { cause: error },
-          );
+          throw new AppError('MANUSCRIPT_CLEANUP_FAILED', { cause: error });
         }
       }
     });

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { usePaginatedSelection } from '~/hooks/use-paginated-selection';
 import ListPagination from '~/components/common/list-pagination';
 import ListSelectionToolbar from '~/components/common/list-selection-toolbar';
@@ -52,7 +53,9 @@ const CommentStyleExampleSetting = () => {
   const selection = usePaginatedSelection(commentExamples, getExampleId);
 
   useEffect(() => {
-    void loadCommentExamples().catch(() => setLoadError('댓글 스타일 예시를 불러오지 못했습니다.'));
+    void loadCommentExamples().catch(() =>
+      setLoadError(getErrorMessage('GROOMI_ERROR:EXAMPLES_LOAD_FAILED')),
+    );
   }, []);
 
   const loadCommentExamples = async () => {
@@ -83,7 +86,12 @@ const CommentStyleExampleSetting = () => {
       await loadCommentExamples();
       showToast('댓글 스타일 예시를 저장했습니다.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '예시 저장에 실패했습니다.', 'danger');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:EXAMPLE_SAVE_FAILED'),
+        'danger',
+      );
     } finally {
       setIsSavingCommentExample(false);
     }
@@ -98,7 +106,12 @@ const CommentStyleExampleSetting = () => {
       setCommentExamples((items) => items.filter((item) => !ids.includes(item.id)));
       showToast('댓글 스타일 예시를 삭제했습니다.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '예시 삭제에 실패했습니다.', 'danger');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:EXAMPLE_DELETE_FAILED'),
+        'danger',
+      );
     } finally {
       deletingRef.current = false;
       setDeleting(false);
@@ -192,7 +205,7 @@ const CommentStyleExampleSetting = () => {
               variant={'outlined'}
               onClick={() =>
                 void loadCommentExamples().catch(() =>
-                  setLoadError('댓글 스타일 예시를 불러오지 못했습니다.'),
+                  setLoadError(getErrorMessage('GROOMI_ERROR:EXAMPLES_LOAD_FAILED')),
                 )
               }
             >

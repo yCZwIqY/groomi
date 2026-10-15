@@ -1,3 +1,4 @@
+import { AppError, serializeAppError } from '../common/app-error.js';
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 
 type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => any;
@@ -20,19 +21,23 @@ function assertTrustedSender(event: IpcMainInvokeEvent) {
     // Rejected below.
   }
 
-  throw new Error('신뢰할 수 없는 화면의 요청을 차단했습니다.');
+  throw new AppError('UNTRUSTED_SENDER');
 }
 
 export function secureHandle(channel: string, handler: IpcHandler) {
-  ipcMain.handle(channel, (event, ...args) => {
-    assertTrustedSender(event);
-    return handler(event, ...args);
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      assertTrustedSender(event);
+      return await handler(event, ...args);
+    } catch (error) {
+      throw new Error(serializeAppError(error));
+    }
   });
 }
 
 export function requireString(value: unknown, fieldName: string) {
   if (typeof value !== 'string') {
-    throw new Error(`${fieldName} must be a string.`);
+    throw new AppError('INVALID_INPUT', { diagnostic: `${fieldName} must be a string.` });
   }
 
   return value;
@@ -44,7 +49,7 @@ export function optionalString(value: unknown, fieldName: string) {
   }
 
   if (typeof value !== 'string') {
-    throw new Error(`${fieldName} must be a string.`);
+    throw new AppError('INVALID_INPUT', { diagnostic: `${fieldName} must be a string.` });
   }
 
   return value;
@@ -52,7 +57,7 @@ export function optionalString(value: unknown, fieldName: string) {
 
 export function requireNumberArray(value: unknown, fieldName: string) {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'number')) {
-    throw new Error(`${fieldName} must be a number array.`);
+    throw new AppError('INVALID_INPUT', { diagnostic: `${fieldName} must be a number array.` });
   }
 
   return value;

@@ -1,3 +1,4 @@
+import { AppError } from '../../common/app-error.js';
 import { withTransaction } from '../../db/connection.js';
 import type { CommentExampleInput } from '../../repositories/comment-example-repository.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
@@ -33,7 +34,7 @@ export function createCommentExampleActions(context: WorkspaceServiceContext) {
   async function removeCommentExample(id: string | string[]) {
     const ids = [...new Set(Array.isArray(id) ? id : [id])];
     if (!ids.length || ids.some((value) => typeof value !== 'string' || !value.trim()))
-      throw new Error('삭제할 댓글 스타일 예시를 선택해주세요.');
+      throw new AppError('COMMENT_EXAMPLE_SELECTION_REQUIRED');
     const workspacePath = await context.getCurrentWorkspacePath();
     await context.withWorkspaceRepositories(workspacePath, async ({ db, commentExamples }) => {
       await withTransaction(db, async () => {
@@ -53,17 +54,17 @@ export function createCommentExampleActions(context: WorkspaceServiceContext) {
 
 function normalizeCommentExampleInput(payload: AddCommentExamplePayload): CommentExampleInput {
   if (!payload || typeof payload !== 'object') {
-    throw new Error('댓글 예시 payload가 올바르지 않습니다.');
+    throw new AppError('COMMENT_EXAMPLE_INVALID');
   }
 
   if (typeof payload.content !== 'string') {
-    throw new Error('댓글 예시 content는 문자열이어야 합니다.');
+    throw new AppError('COMMENT_EXAMPLE_TEXT_REQUIRED');
   }
   if (
     payload.interest != null &&
     !['캐릭터', '인물 관계', '전개', '세계관', '문장'].includes(payload.interest)
   ) {
-    throw new Error('댓글 예시 관심사가 올바르지 않습니다.');
+    throw new AppError('COMMENT_EXAMPLE_INTEREST_INVALID');
   }
 
   return {
@@ -84,7 +85,7 @@ function normalizeOptionalString(value: unknown): string | null {
   }
 
   if (typeof value !== 'string') {
-    throw new Error('문자열 필드가 올바르지 않습니다.');
+    throw new AppError('INVALID_TEXT_FIELD');
   }
 
   return value;
@@ -96,7 +97,7 @@ function normalizeOptionalNumber(value: unknown, fieldName: string): number | nu
   }
 
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`${fieldName}는 숫자여야 합니다.`);
+    throw new AppError('INVALID_INPUT', { diagnostic: `${fieldName}는 숫자여야 합니다.` });
   }
 
   return value;

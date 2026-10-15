@@ -1,3 +1,5 @@
+import { AppError } from '../../common/app-error.js';
+import { resolveGroupOutputLanguage } from '../story-memory/output-language.js';
 import { buildAiChapterText, toAiText } from '../ai-text.js';
 import { mergeMemoryChanges } from './merge-memory-changes.js';
 import { logGenerationMetrics } from '../ai-generation-metrics.js';
@@ -56,7 +58,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
       if (!node || node.type !== 'document') {
-        throw new Error('회차 정보를 생성할 문서를 찾을 수 없습니다.');
+        throw new AppError('MEMORY_DOCUMENT_NOT_FOUND');
       }
 
       const setting = await context.withWorkspaceRepositories(
@@ -67,7 +69,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       if (
         !(setting.aiProvider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel)
       ) {
-        throw new Error('LLM 모델이 선택되지 않았습니다.');
+        throw new AppError('LLM_MODEL_REQUIRED');
       }
 
       const novelType = getNovelType(store, node.parentId ?? null);
@@ -75,9 +77,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
 
       const currentContent = await readDocumentContent(workspacePath, node.id);
       if (!toAiText(currentContent.manuscript?.content)) {
-        throw new Error(
-          '회차 정보를 생성할 원고 본문이 없습니다. 원고를 작성한 뒤 다시 시도해주세요. 초고는 회차 정보 생성에 사용되지 않습니다.',
-        );
+        throw new AppError('MEMORY_MANUSCRIPT_REQUIRED');
       }
       const currentText = buildAiChapterText(
         {
@@ -106,7 +106,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
           events.push(...memory.events);
         }
         if (previous.length && !previousMemory) {
-          throw new Error('이전 회차의 정보가 없습니다. 앞 회차 정보를 먼저 생성해주세요.');
+          throw new AppError('MEMORY_PREVIOUS_REQUIRED');
         }
         if (previousMemory)
           previousMemory = {
@@ -138,6 +138,13 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       }
 
       const { systemPrompt, userPrompt, aliases } = buildStoryMemoryPrompt({
+        outputLanguage: await resolveGroupOutputLanguage(
+          workspacePath,
+          store,
+          node.parentId ?? null,
+          setting.aiOutputLanguage ?? 'auto',
+          toAiText(currentContent.manuscript?.content),
+        ),
         chapterTitle: currentContent.title ?? node.name,
         currentText,
         previousMemory,
@@ -196,7 +203,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
         if (attempt === 1) throw error;
         messages.push({
           role: 'user',
-          content: `응답 검증 실패: ${error instanceof Error ? error.message : '잘못된 형식'}. 위 입력으로 올바른 JSON을 다시 반환해주세요.`,
+          content: `Response validation failed: ${error instanceof Error ? error.message : 'Invalid format'}. Return valid JSON for the same input, preserving the specified output language.`,
         });
       }
     }
@@ -216,7 +223,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       const store = await ensureStore(workspacePath);
       const currentNode = context.getUpdatedNodeById(workspacePath, store, documentId);
       if (!currentNode || currentNode.deletedAt) {
-        throw new Error('회차 정보를 저장할 문서를 찾을 수 없습니다.');
+        throw new AppError('MEMORY_SAVE_DOCUMENT_NOT_FOUND');
       }
       return saveStoryMemory(currentNode.path, draft);
     });
@@ -230,7 +237,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
     const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('회차 정보를 저장할 문서를 찾을 수 없습니다.');
+      throw new AppError('MEMORY_SAVE_DOCUMENT_NOT_FOUND');
     }
 
     const currentContent = await readDocumentContent(workspacePath, node.id);
@@ -241,13 +248,13 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
     );
     for (const character of draft.characters) {
       if (character.id && !groupMemory.characters.some((item) => item.id === character.id))
-        throw new Error('알 수 없는 인물 ID입니다.');
+        throw new AppError('CHARACTER_ID_UNKNOWN');
       if (character.status && !['active', 'dead', 'left', 'unknown'].includes(character.status))
-        throw new Error('인물 상태가 올바르지 않습니다.');
+        throw new AppError('CHARACTER_STATUS_INVALID');
     }
     for (const hook of draft.plotHooks) {
       if (hook.id && !groupMemory.plotHooks.some((item) => item.id === hook.id))
-        throw new Error('알 수 없는 복선 ID입니다.');
+        throw new AppError('HOOK_ID_UNKNOWN');
     }
     const records = mergeMemoryChanges(groupMemory, draft);
     const storyMemory: StoryMemory = {
@@ -323,7 +330,7 @@ export function createStoryMemoryActions(context: WorkspaceServiceContext) {
       const { node } = await context.getStoreNodeByPath(groupPath);
 
       if (!node || node.type !== 'workspace') {
-        throw new Error('그룹을 찾을 수 없습니다.');
+        throw new AppError('GROUP_NOT_FOUND');
       }
 
       parentId = node.id;
@@ -368,13 +375,13 @@ export function parseStoryMemoryDraft(
   try {
     parsed = JSON.parse(cleaned.slice(first, last + 1));
   } catch {
-    throw new Error('회차 정보를 JSON으로 해석하지 못했습니다.');
+    throw new AppError('MEMORY_JSON_INVALID');
   }
   validateSchema(parsed, storyMemorySchema);
   for (const character of parsed.characters) {
     if (character.id) {
       const id = aliases.characters.get(character.id);
-      if (!id) throw new Error('알 수 없는 인물 ID가 생성되었습니다.');
+      if (!id) throw new AppError('CHARACTER_RESPONSE_ID_UNKNOWN');
       character.id = id;
     } else if (
       !character.name ||
@@ -382,17 +389,17 @@ export function parseStoryMemoryDraft(
       typeof character.summary !== 'string' ||
       !Array.isArray(character.keywords)
     ) {
-      throw new Error('신규 인물은 name, info, keywords, summary가 필요합니다.');
+      throw new AppError('CHARACTER_FIELDS_REQUIRED');
     }
     if (!character.id) character.status ??= 'unknown';
   }
   for (const hook of parsed.plotHooks) {
     if (hook.id) {
       const id = aliases.plotHooks.get(hook.id);
-      if (!id) throw new Error('알 수 없는 복선 ID가 생성되었습니다.');
+      if (!id) throw new AppError('HOOK_RESPONSE_ID_UNKNOWN');
       hook.id = id;
     } else {
-      if (!hook.description) throw new Error('신규 복선은 description이 필요합니다.');
+      if (!hook.description) throw new AppError('HOOK_DESCRIPTION_REQUIRED');
       hook.plantedAt = chapterTitle;
       hook.status ??= 'unresolved';
     }

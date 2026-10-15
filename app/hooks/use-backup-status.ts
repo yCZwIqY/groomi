@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspacePath } from '~/hooks';
 import { getWorkspaceBackupStatus } from '~/lib/electron/workspace-api';
@@ -12,7 +13,7 @@ export default function useBackupStatus() {
       setStatus(await getWorkspaceBackupStatus());
       setError('');
     } catch {
-      setError('백업 기록을 불러오지 못했습니다.');
+      setError(getErrorMessage('GROOMI_ERROR:BACKUP_STATUS_FAILED'));
     }
   }, [workspacePath]);
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function useBackupStatus() {
           setError('');
         }
       } catch {
-        if (active) setError('백업 기록을 불러오지 못했습니다.');
+        if (active) setError(getErrorMessage('GROOMI_ERROR:BACKUP_STATUS_FAILED'));
       }
     };
     void load();

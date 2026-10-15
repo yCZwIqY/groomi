@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import path from 'node:path';
 
 import { ensureStore } from './workspace/store.js';
@@ -38,7 +39,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const { nodeByPath } = buildNodeInfo(workspacePath, store);
 
     if (nodeByPath.has(normalizedTargetPath)) {
-      throw new Error('같은 레벨에선 중복되는 이름을 사용할 수 없습니다.');
+      throw new AppError('NAME_DUPLICATE');
     }
 
     const parentNode =
@@ -47,7 +48,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
         : nodeByPath.get(normalizePath(parentPath));
 
     if (parentNode && parentNode.type !== 'workspace') {
-      throw new Error('문서 아래에는 그룹을 생성할 수 없습니다.');
+      throw new AppError('GROUP_UNDER_DOCUMENT_NOT_ALLOWED');
     }
 
     const newGroup: WorkspaceStoreGroup = {
@@ -86,7 +87,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const { node } = await context.getStoreNodeByPath(oldWorkspacePath);
 
     if (!node || node.type !== 'workspace') {
-      throw new Error('수정할 그룹을 찾을 수 없습니다.');
+      throw new AppError('GROUP_UPDATE_NOT_FOUND');
     }
 
     await context.withWorkspaceRepositories(workspacePath, async ({ workspaceNodes }) => {
@@ -108,7 +109,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const { store, node } = await context.getStoreNodeByPath(targetPath);
 
     if (!node || node.type !== 'workspace') {
-      throw new Error('삭제할 그룹을 찾을 수 없습니다.');
+      throw new AppError('GROUP_DELETE_NOT_FOUND');
     }
 
     const removedGroupIds = collectGroupDescendantIds(store.groups, node.id);
@@ -145,9 +146,9 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const { store, node } = await context.getStoreNodeByPath(targetPath);
 
     if (!node || node.type !== 'workspace') {
-      throw new Error('영구 삭제할 그룹을 찾을 수 없습니다.');
+      throw new AppError('GROUP_PURGE_NOT_FOUND');
     }
-    if (!node.deletedAt) throw new Error('휴지통에 있는 그룹만 영구 삭제할 수 있습니다.');
+    if (!node.deletedAt) throw new AppError('GROUP_NOT_IN_TRASH');
 
     const removedGroupIds = collectGroupDescendantIds(store.groups, node.id);
     const removedGroups = store.groups.filter((group: WorkspaceStoreGroup) =>
@@ -193,7 +194,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const { store, node } = await context.getStoreNodeByPath(targetPath);
 
     if (!node || node.type !== 'workspace') {
-      throw new Error('복구할 워크스페이스를 찾을 수 없습니다.');
+      throw new AppError('WORKSPACE_RECOVERY_NOT_FOUND');
     }
 
     const { groupsById } = buildNodeInfo(workspacePath, store);
@@ -240,7 +241,7 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
         : (buildNodeInfo(workspacePath, store).nodeByPath.get(normalizedWorkflowPath) ?? null);
 
     if (!workflowData) {
-      throw new Error('워크스페이스를 찾을 수 없습니다.');
+      throw new AppError('WORKSPACE_NOT_FOUND');
     }
 
     if (!workflowData.deletedAt) {
@@ -301,12 +302,12 @@ export function createWorkspaceActions(context: WorkspaceServiceContext) {
     const targetNode = nodeByPath.get(normalizedWorkflowPath);
 
     if (!targetNode || targetNode.type !== 'workspace') {
-      throw new Error('수정할 워크스페이스를 찾을 수 없습니다.');
+      throw new AppError('WORKSPACE_UPDATE_NOT_FOUND');
     }
 
     const currentGroup = store.groups.find((group) => group.id === targetNode.id);
     if (!currentGroup) {
-      throw new Error('수정할 워크스페이스 메타데이터를 찾을 수 없습니다.');
+      throw new AppError('WORKSPACE_METADATA_NOT_FOUND');
     }
 
     const updatedAt = now();

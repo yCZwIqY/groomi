@@ -1,3 +1,5 @@
+import { useLanguage } from '~/stores/use-language';
+import { getErrorMessage } from '~/lib/app-error';
 import { useCallback, useEffect, useState } from 'react';
 import { getSettingInfo } from '~/lib/electron/setting-api';
 import { getOllamaRunning } from '~/lib/ollama-api';
@@ -7,16 +9,21 @@ export async function getAiStatus() {
   const provider = setting.aiProvider;
   const model = provider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel;
   const label = `${provider === 'openrouter' ? 'OpenRouter' : 'Ollama'}${model ? ` · ${model}` : ''}`;
-  let issue = '';
+  let code:
+    | 'OPENROUTER_KEY_SETUP_REQUIRED'
+    | 'AI_MODEL_REQUIRED'
+    | 'OLLAMA_NOT_RUNNING'
+    | undefined;
   if (provider === 'openrouter' && !setting.hasOpenRouterKey)
-    issue = '설정에서 OpenRouter API 키를 등록해주세요.';
-  else if (!model) issue = '설정에서 AI 모델을 선택해주세요.';
-  else if (provider === 'ollama' && !(await getOllamaRunning()))
-    issue = 'Ollama를 실행한 뒤 다시 확인해주세요.';
-  return { label, issue, ready: !issue };
+    code = 'OPENROUTER_KEY_SETUP_REQUIRED';
+  else if (!model) code = 'AI_MODEL_REQUIRED';
+  else if (provider === 'ollama' && !(await getOllamaRunning())) code = 'OLLAMA_NOT_RUNNING';
+  const issue = code ? getErrorMessage('GROOMI_ERROR:' + code) : '';
+  return { label, issue, code, ready: !code };
 }
 
 export function useAiStatus(documentPath: string) {
+  const language = useLanguage((state) => state.language);
   const [status, setStatus] = useState({ label: '', issue: '', ready: false });
   const [checking, setChecking] = useState(true);
   const refresh = useCallback(async () => {
@@ -26,7 +33,7 @@ export function useAiStatus(documentPath: string) {
     } catch {
       setStatus({
         label: '',
-        issue: 'AI 설정을 확인하지 못했습니다. 다시 확인해주세요.',
+        issue: getErrorMessage('GROOMI_ERROR:AI_SETTINGS_CHECK_FAILED'),
         ready: false,
       });
     } finally {
@@ -35,6 +42,6 @@ export function useAiStatus(documentPath: string) {
   }, []);
   useEffect(() => {
     void refresh();
-  }, [documentPath, refresh]);
+  }, [documentPath, refresh, language]);
   return { ...status, checking, refresh };
 }

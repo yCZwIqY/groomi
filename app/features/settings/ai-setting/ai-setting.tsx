@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useCallback, useEffect, useState } from 'react';
 import SettingsSection from '~/components/common/settings-section';
 import { DnSelect } from '~/components/common/selector';
@@ -57,7 +58,11 @@ const AiSetting = () => {
     })()
       .catch((cause) => {
         if (active)
-          setError(cause instanceof Error ? cause.message : 'AI 설정을 불러오지 못했습니다.');
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : getErrorMessage('GROOMI_ERROR:AI_SETTINGS_LOAD_FAILED'),
+          );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -74,7 +79,11 @@ const AiSetting = () => {
     try {
       await action();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '설정을 변경하지 못했습니다.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : getErrorMessage('GROOMI_ERROR:SETTINGS_SAVE_FAILED'),
+      );
     } finally {
       setBusy(false);
     }

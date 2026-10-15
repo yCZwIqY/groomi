@@ -1,3 +1,4 @@
+import { withAiTaskUsage } from '../services/ai-task-usage.js';
 import channels from '../common/channels.cjs';
 import type { createWorkspaceService } from '../services/workspace-service.js';
 import { requireString, secureHandle } from './ipc-guards.js';
@@ -13,8 +14,8 @@ export function registerStoryMemoryIpcHandlers(
     }
   };
   secureHandle(channels.storyMemory.generate, async (_, targetPath) => {
-    const result = await workspaceService.generateStoryMemory(
-      requireString(targetPath, 'targetPath'),
+    const result = await withAiTaskUsage(() =>
+      workspaceService.generateStoryMemory(requireString(targetPath, 'targetPath')),
     );
     broadcastChanged();
     return result;

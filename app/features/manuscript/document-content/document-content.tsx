@@ -1,3 +1,5 @@
+import { getErrorMessage } from '~/lib/app-error';
+import { errorToken } from '~/lib/app-error';
 import { TbArrowsMaximize, TbArrowsMinimize, TbDeviceFloppy } from 'react-icons/tb';
 import ManuscriptReviewModal from './review/manuscript-review-modal';
 import { generateManuscriptReview } from '~/lib/electron/review-api';
@@ -108,7 +110,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     try {
       await save();
     } catch {
-      showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
+      showToast(getErrorMessage('GROOMI_ERROR:MANUSCRIPT_SAVE_FAILED'), 'danger');
       return;
     }
     showToast('저장완료', 'success');
@@ -140,7 +142,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       try {
         await save();
       } catch {
-        showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
+        showToast(getErrorMessage('GROOMI_ERROR:MANUSCRIPT_SAVE_FAILED'), 'danger');
         return;
       }
 
@@ -152,7 +154,9 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       startStoryMemoryGeneration();
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : '회차 정보 생성을 준비하지 못했습니다.',
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:MEMORY_PREPARATION_FAILED'),
         'danger',
       );
     } finally {
@@ -172,17 +176,12 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     });
 
     generateStoryMemory(updatedWorkspace.path)
-      .then((draft) => {
-        finishTask(taskId, 'done', draft);
+      .then(({ result: draft, usage }) => {
+        finishTask(taskId, 'done', draft, undefined, undefined, usage);
         showToast(`${documentTitle} 정보 생성이 완료됐습니다.`, 'success');
       })
       .catch((error) => {
-        finishTask(
-          taskId,
-          'error',
-          undefined,
-          error instanceof Error ? error.message : '회차 정보 생성에 실패했습니다.',
-        );
+        finishTask(taskId, 'error', undefined, errorToken(error));
         showToast(`${documentTitle} 정보 생성에 실패했습니다.`, 'danger');
       });
   };
@@ -206,7 +205,7 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       try {
         await save();
       } catch {
-        showToast('저장에 실패했습니다. 작성 내용은 유지됩니다.', 'danger');
+        showToast(getErrorMessage('GROOMI_ERROR:MANUSCRIPT_SAVE_FAILED'), 'danger');
         return;
       }
 
@@ -218,7 +217,9 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
       startReviewGeneration();
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : '원고 리뷰 생성을 준비하지 못했습니다.',
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:REVIEW_PREPARATION_FAILED'),
         'danger',
       );
     } finally {
@@ -238,17 +239,12 @@ export const DocumentContent = ({ workspaceData, onUpdated }: Props) => {
     });
 
     generateManuscriptReview(updatedWorkspace.path)
-      .then((draft) => {
-        finishTask(taskId, 'done', undefined, undefined, draft);
+      .then(({ result: draft, usage }) => {
+        finishTask(taskId, 'done', undefined, undefined, draft, usage);
         showToast(`${documentTitle} 원고 리뷰 생성이 완료됐습니다.`, 'success');
       })
       .catch((error) => {
-        finishTask(
-          taskId,
-          'error',
-          undefined,
-          error instanceof Error ? error.message : '원고 리뷰 생성에 실패했습니다.',
-        );
+        finishTask(taskId, 'error', undefined, errorToken(error));
         showToast(`${documentTitle} 원고 리뷰 생성에 실패했습니다.`, 'danger');
       });
   };

@@ -301,8 +301,8 @@ declare global {
       removeFile: (filePath: string) => Promise<void>;
       showInFolder: (filePath: string) => Promise<void>;
 
-      generateManuscriptReview: (documentPath: string) => Promise<ManuscriptReview>;
-      generateStoryMemory: (documentPath: string) => Promise<StoryMemoryDraft>;
+      generateManuscriptReview: (documentPath: string) => Promise<AiTaskResult<ManuscriptReview>>;
+      generateStoryMemory: (documentPath: string) => Promise<AiTaskResult<StoryMemoryDraft>>;
       saveStoryMemory: (documentPath: string, draft: StoryMemoryDraft) => Promise<StoryMemory>;
       getLatestStoryMemory: (groupPath: string) => Promise<StoryMemory | null>;
 
@@ -312,7 +312,7 @@ declare global {
       addCommentExample: (payload: AddCommentExamplePayload) => Promise<CommentExample>;
       generateComments: (
         payload: GenerateCommentsPayload,
-      ) => Promise<GeneratedComment[]>;
+      ) => Promise<AiTaskResult<GeneratedComment[]>>;
       listCommentExamples: () => Promise<CommentExample[]>;
       removeCommentExample: (
         id: string | string[],

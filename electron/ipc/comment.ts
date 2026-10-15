@@ -1,3 +1,4 @@
+import { withAiTaskUsage } from '../services/ai-task-usage.js';
 import type { createWorkspaceService } from '../services/workspace-service.js';
 import channels from '../common/channels.cjs';
 import { requireString, secureHandle } from './ipc-guards.js';
@@ -10,7 +11,7 @@ export function registerCommentIpcHandlers(
   });
 
   secureHandle(channels.comment.generateComments, async (_, payload) => {
-    return workspaceService.generateComments(payload);
+    return withAiTaskUsage(() => workspaceService.generateComments(payload));
   });
 
   secureHandle(channels.comment.listExamples, async () => {

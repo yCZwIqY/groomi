@@ -1,3 +1,5 @@
+import { getErrorMessage } from '~/lib/app-error';
+import { errorToken, LocalizedAppError } from '~/lib/app-error';
 import DnMultiChipGroup from '~/components/common/chip-group/dn-multi-chip-group';
 import {
   READING_EXPERIENCE_OPTIONS,
@@ -61,35 +63,36 @@ const GenerateComment = ({ documentPath, documentTitle, onGenerated }: Props) =>
     if (disabled) return;
 
     setLoading(true);
-    const taskId = startTask({ documentPath, documentTitle, type: 'comments' });
+    const commentOptions: GenerateCommentsPayload = {
+      documentPath,
+      startAge,
+      endAge,
+      readingExperiences,
+      expertise: Math.max(
+        ...readingExperiences.map((experience) => READING_EXPERIENCE_LEVELS[experience]),
+      ),
+      interests,
+      reactions,
+      count,
+    };
+    const taskId = startTask({ documentPath, documentTitle, type: 'comments', commentOptions });
 
     try {
       const status = await getAiStatus();
-      if (!status.ready) throw new Error(status.issue);
-      const comments = await generateComments({
-        documentPath,
-        startAge,
-        endAge,
-        readingExperiences,
-        expertise: Math.max(
-          ...readingExperiences.map((experience) => READING_EXPERIENCE_LEVELS[experience]),
-        ),
-        interests,
-        reactions,
-        count,
-      });
+      if (!status.ready) throw new LocalizedAppError(status.code ?? 'UNKNOWN');
+      const { result: comments, usage } = await generateComments(commentOptions);
 
-      finishTask(taskId, 'done');
+      finishTask(taskId, 'done', undefined, undefined, undefined, usage);
       showToast(`${documentTitle} 댓글 생성이 완료됐습니다.`, 'success');
       onGenerated?.(comments);
     } catch (error) {
-      finishTask(
-        taskId,
-        'error',
-        undefined,
-        error instanceof Error ? error.message : '댓글 생성에 실패했습니다.',
+      finishTask(taskId, 'error', undefined, errorToken(error));
+      showToast(
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:COMMENTS_GENERATION_FAILED'),
+        'danger',
       );
-      showToast(error instanceof Error ? error.message : '댓글 생성에 실패했습니다.', 'danger');
     } finally {
       setLoading(false);
     }

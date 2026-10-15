@@ -138,6 +138,7 @@ app
     registerIpcHandlers(app);
     const { ipcMain } = require('electron');
     const { secureHandle } = await load('ipc/ipc-guards.js');
+    const { withAiTaskUsage } = await load('services/ai-task-usage.js');
     ipcMain.removeHandler('ollama:is-running');
     secureHandle('ollama:is-running', async () => true);
     let completedUpdates = 0;
@@ -423,8 +424,11 @@ app
     );
     console.log('PASS: checkbox selection and confirmed batch comment deletion');
     ipcMain.removeHandler('comment:generateComments');
-    secureHandle('comment:generateComments', async () => {
-      throw new Error('테스트 생성 실패 사유');
+    let failedCommentOptions;
+    secureHandle('comment:generateComments', async (_event, params) => {
+      failedCommentOptions = structuredClone(params);
+      const { AppError } = await load('common/app-error.js');
+      throw new AppError('OPENROUTER_CREDITS_REQUIRED');
     });
     await click('댓글 생성');
     await until(
@@ -437,13 +441,45 @@ app
     await until(
       () =>
         window.webContents.executeJavaScript(
-          `document.body.textContent.includes('테스트 생성 실패 사유')`,
+          `document.body.textContent.includes('OpenRouter 잔액이 부족합니다.')`,
         ),
       'background failure reason retained',
     );
     console.log('PASS: background failure reason is retained in task history');
+    const failedTaskId = await window.webContents.executeJavaScript(
+      `[...document.querySelectorAll('[data-task-id]')].find(row => row.textContent.includes('OpenRouter 잔액이 부족합니다.')).dataset.taskId`,
+    );
+    let retryCalls = 0;
+    let releaseRetry;
+    const retryGate = new Promise((resolve) => {
+      releaseRetry = resolve;
+    });
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', async (_event, params) => {
+      retryCalls++;
+      assert.deepEqual(params, failedCommentOptions);
+      await retryGate;
+      const { AppError } = await load('common/app-error.js');
+      throw new AppError('OPENROUTER_CREDITS_REQUIRED');
+    });
+    await window.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector('[data-task-id="${failedTaskId}"] button');
+      button.click(); button.click();
+    })()`);
+    await until(() => retryCalls === 1, 'one retry request despite double click');
+    releaseRetry();
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[data-task-id="${failedTaskId}"]').dataset.taskStatus === 'error'`,
+        ),
+      'retry failure remains retryable',
+    );
+    assert.equal(retryCalls, 1);
+    console.log('PASS: failed task retry preserves options and prevents duplicate requests');
     const failureText = await window.webContents.executeJavaScript('document.body.textContent');
-    assert.ok(failureText.includes('Error: 테스트 생성 실패 사유'));
+    assert.ok(failureText.includes('OpenRouter 잔액이 부족합니다.'));
+    assert.ok(!failureText.includes('GROOMI_ERROR:'));
     assert.ok(!failureText.includes("Error invoking remote method 'comment:generateComments'"));
     ipcMain.removeHandler('ollama:is-running');
     secureHandle('ollama:is-running', async () => false);
@@ -482,6 +518,88 @@ app
       ),
     );
     console.log('PASS: route navigation flushes the manuscript');
+
+    await window.webContents.executeJavaScript(`(() => {
+      const language = document.querySelector('select[aria-label="언어"]');
+      language.value = 'en';
+      language.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await until(
+      () => window.webContents.executeJavaScript(`document.documentElement.lang === 'en'`),
+      'English interface selected',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('Insufficient OpenRouter credits.')`,
+        ),
+      'recorded error translated into English',
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      const language = document.querySelector('select[aria-label="Language"]');
+      language.value = 'ko';
+      language.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.documentElement.lang === 'ko' && document.body.textContent.includes('OpenRouter 잔액이 부족합니다.')`,
+        ),
+      'recorded error translated back into Korean',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    console.log('PASS: error codes survive IPC and task history follows the selected language');
+    ipcMain.removeHandler('ollama:is-running');
+    secureHandle('ollama:is-running', async () => true);
+    await service.updateSelectedLLMModel('test-model');
+    await service.updateAiSettings('ollama', null);
+    ipcMain.removeHandler('comment:generateComments');
+    secureHandle('comment:generateComments', async (_event, params) => {
+      assert.deepEqual(params, failedCommentOptions);
+      return {
+        result: [],
+        usage: {
+          provider: 'openrouter',
+          inputTokens: 1,
+          outputTokens: 1,
+          requestCount: 1,
+          complete: true,
+          costUsd: 0.001,
+          costComplete: true,
+        },
+      };
+    });
+    await window.webContents.executeJavaScript(`(() => {
+      const toggle = [...document.querySelectorAll('button')].find(button => button.textContent.includes('백그라운드 작업'));
+      if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
+    })()`);
+    await window.webContents.executeJavaScript(
+      `document.querySelector('[data-task-id="${failedTaskId}"] button').click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.querySelector('[data-task-id="${failedTaskId}"]').dataset.taskStatus === 'done'`,
+        ),
+      'retry success',
+    );
+    assert.ok(
+      await window.webContents.executeJavaScript(
+        `document.querySelector('[data-task-id="${failedTaskId}"]').textContent.includes('USD 0.001')`,
+      ),
+    );
+    console.log('PASS: retry succeeds after navigation and displays usage');
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find(button => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    ipcMain.removeHandler('ollama:is-running');
+    secureHandle('ollama:is-running', async () => false);
+    await service.updateSelectedLLMModel(null);
 
     await click('라이선스 및 출처 보기');
     await until(
@@ -650,7 +768,7 @@ app
       return new Response(
         JSON.stringify({
           choices: [{ message: { content: JSON.stringify(payload) }, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 11, completion_tokens: 7 },
+          usage: { prompt_tokens: 11, completion_tokens: 7, cost: 0.000123 },
         }),
       );
     };
@@ -822,12 +940,35 @@ app
     await until(
       () =>
         window.webContents.executeJavaScript(
+          `document.body.textContent.includes('정보 생성이 완료됐습니다.')`,
+        ),
+      'remote task completed',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
+          `document.body.textContent.includes('사용 금액 USD 0.000123')`,
+        ),
+      'completed task shows OpenRouter cost',
+    );
+    await window.webContents.executeJavaScript(
+      `([...document.querySelectorAll('button')].find((button) => button.textContent.includes('백그라운드 작업'))).click()`,
+    );
+    console.log('PASS: completed OpenRouter task displays reported USD cost');
+    await until(
+      () =>
+        window.webContents.executeJavaScript(
           `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '댓글 생성' && !button.disabled)`,
         ),
       'background generation complete',
     );
     ipcMain.removeHandler('comment:generateComments');
-    secureHandle('comment:generateComments', (_event, params) => service.generateComments(params));
+    secureHandle('comment:generateComments', (_event, params) =>
+      withAiTaskUsage(() => service.generateComments(params)),
+    );
     responseMode = 'comments';
     await click('5개');
     await click('댓글 생성');
@@ -848,7 +989,7 @@ app
     ipcMain.removeHandler('comment:generateComments');
     secureHandle('comment:generateComments', async () => {
       concurrentComments++;
-      return [];
+      return { result: [] };
     });
     ipcMain.removeHandler('review:generate');
     secureHandle('review:generate', async (_event, targetPath) => {
@@ -856,12 +997,14 @@ app
       reviewCalls++;
       if (reviewCalls === 1) await reviewGate;
       return {
-        criteria: Object.fromEntries(
-          ['contextConsistency', 'pacing', 'readability', 'characterConsistency', 'hook'].map(
-            (key) => [key, { score: 8, comment: '"기존에 저장된 원고"의 흐름이 자연스럽다.' }],
+        result: {
+          criteria: Object.fromEntries(
+            ['contextConsistency', 'pacing', 'readability', 'characterConsistency', 'hook'].map(
+              (key) => [key, { score: 8, comment: '"기존에 저장된 원고"의 흐름이 자연스럽다.' }],
+            ),
           ),
-        ),
-        overallComment: '리뷰 총평 ' + reviewCalls,
+          overallComment: '리뷰 총평 ' + reviewCalls,
+        },
       };
     });
     await click('원고 리뷰 생성');
@@ -934,7 +1077,9 @@ app
     );
     await click('닫기');
     ipcMain.removeHandler('comment:generateComments');
-    secureHandle('comment:generateComments', (_event, params) => service.generateComments(params));
+    secureHandle('comment:generateComments', (_event, params) =>
+      withAiTaskUsage(() => service.generateComments(params)),
+    );
     console.log(
       'PASS: comments during review; review generation, five criteria, regeneration and reopening',
     );

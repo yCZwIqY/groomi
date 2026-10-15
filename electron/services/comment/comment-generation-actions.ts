@@ -1,5 +1,10 @@
-import { buildAiChapterText } from '../ai-text.js';
-import { logGenerationMetrics } from '../ai-generation-metrics.js';
+import { AppError } from '../../common/app-error.js';
+import { findCommentTypoCandidates } from './comment-typo-candidates.js';
+import { buildCommentResponseSchema } from './comment-response-schema.js';
+import { outputLanguageInstruction, type ResolvedOutputLanguage } from '../ai-output-language.js';
+import { resolveGroupOutputLanguage } from '../story-memory/output-language.js';
+import { buildAiChapterText, toAiText } from '../ai-text.js';
+import { logGenerationMetrics, logCommentValidationFailure } from '../ai-generation-metrics.js';
 import { getGroupMemory } from '../story-memory/group-memory.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
 import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
@@ -40,6 +45,7 @@ type GenerateCommentsResult = {
 };
 
 const MAX_SAVED_STYLE_EXAMPLES = 12;
+const MIN_SAVED_STYLE_EXAMPLES = 6;
 
 const EXPERTISE_LEVELS = [0, 20, 40, 60, 80, 100] as const;
 const EXPERTISE_LABELS: Record<number, string> = {
@@ -75,7 +81,9 @@ function selectedOptions<T extends string>(
     values.length === 0 ||
     values.some((value) => !allowed.includes(value))
   ) {
-    throw new Error(`${label} 항목을 최소 하나 선택해주세요.`);
+    throw new AppError('AI_RESPONSE_INVALID', {
+      diagnostic: `${label} 항목을 최소 하나 선택해주세요.`,
+    });
   }
   return [...new Set(values)];
 }
@@ -86,6 +94,8 @@ type PersonaSlot = {
   expertiseLabel: string;
   interest: (typeof PERSONA_INTERESTS)[number];
   reaction: (typeof PERSONA_REACTIONS)[number];
+  speechRegister: 'casual' | 'polite';
+  voiceStyle: 'quick-reaction' | 'chatty' | 'understated' | 'thoughtful';
 };
 
 function shuffle<T>(items: T[]): T[] {
@@ -123,9 +133,7 @@ function buildPersonaSlots({
     (!readingExperiences &&
       !EXPERTISE_LEVELS.includes(expertise as (typeof EXPERTISE_LEVELS)[number]))
   ) {
-    throw new Error(
-      '댓글 생성 조건이 올바르지 않습니다. 연령대, 독서 경험과 댓글 개수를 확인해주세요.',
-    );
+    throw new AppError('COMMENT_OPTIONS_INVALID');
   }
   const ageSteps: number[] = [];
   for (let age = startAge; age <= endAge; age += 10) {
@@ -156,12 +164,31 @@ function buildPersonaSlots({
 
   const interests = shuffle(selectedOptions(selectedInterests, PERSONA_INTERESTS, '관심사'));
   const reactions = shuffle(selectedOptions(selectedReactions, PERSONA_REACTIONS, '반응 성향'));
+  // Keep an explicitly requested correction persona available even in a small batch.
+  if (selectedReactions?.includes('지적') && reactions.indexOf('지적') >= count) {
+    const correctionIndex = reactions.indexOf('지적');
+    [reactions[0], reactions[correctionIndex]] = [reactions[correctionIndex], reactions[0]];
+  }
+  const registers = shuffle(
+    Array.from(
+      { length: count },
+      (_, index) => (index % 2 ? 'polite' : 'casual') as PersonaSlot['speechRegister'],
+    ),
+  );
+  const voiceStyles = shuffle(
+    Array.from(
+      { length: count },
+      (_, index) => (['quick-reaction', 'chatty', 'understated', 'thoughtful'] as const)[index % 4],
+    ),
+  );
 
   return Array.from({ length: count }, (_, index) => ({
     ...combos[index % combos.length],
     // 관심사와 반응 성향은 연령·전문성과 독립적으로 고르게 배정한다.
     interest: interests[index % interests.length],
     reaction: reactions[index % reactions.length],
+    speechRegister: registers[index],
+    voiceStyle: voiceStyles[index],
   }));
 }
 
@@ -176,7 +203,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         );
 
         if (!node || node.type !== 'document') {
-          throw new Error('댓글을 생성할 문서를 찾을 수 없습니다.');
+          throw new AppError('COMMENT_DOCUMENT_NOT_FOUND');
         }
 
         const setting = await context.withWorkspaceRepositories(
@@ -189,7 +216,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
             ? setting.openRouterModel
             : setting.selectedLLMModel)
         ) {
-          throw new Error('LLM 모델이 선택되지 않았습니다.');
+          throw new AppError('LLM_MODEL_REQUIRED');
         }
 
         const content = await readDocumentContent(workspacePath, node.id);
@@ -250,25 +277,37 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
               reactions: payload.reactions,
             }),
         );
+        // 사용자 예시가 충분하면 기본 말투를 섞지 않고, 부족할 때만 보충한다.
+        const defaultStyleExamples =
+          savedStyleExamples.length >= MIN_SAVED_STYLE_EXAMPLES
+            ? []
+            : filterDefaultStyleExamples({
+                defaultExamples: getDefaultCommentStyleExamples(),
+                startAge: payload.startAge,
+                endAge: payload.endAge,
+                expertise: payload.expertise ?? Math.max(...selectedLevels),
+                expertiseLevels: payload.readingExperiences
+                  ? payload.readingExperiences.map(
+                      (experience) => READING_EXPERIENCE_LEVELS[experience],
+                    )
+                  : undefined,
+              });
         const styleExamples = [
-          ...filterDefaultStyleExamples({
-            defaultExamples: getDefaultCommentStyleExamples(),
-            startAge: payload.startAge,
-            endAge: payload.endAge,
-            expertise: payload.expertise ?? Math.max(...selectedLevels),
-            expertiseLevels: payload.readingExperiences
-              ? payload.readingExperiences.map(
-                  (experience) => READING_EXPERIENCE_LEVELS[experience],
-                )
-              : undefined,
-          }),
           ...savedStyleExamples,
+          ...defaultStyleExamples.slice(0, MAX_SAVED_STYLE_EXAMPLES - savedStyleExamples.length),
         ];
 
         const personaSlots = requestedSlots;
 
         const { systemPrompt, userPrompt } = buildCommentPrompt({
           ...payload,
+          outputLanguage: await resolveGroupOutputLanguage(
+            workspacePath,
+            store,
+            node.parentId ?? null,
+            setting.aiOutputLanguage ?? 'auto',
+            toAiText(content.manuscript?.content) || targetScript,
+          ),
           targetTitle: content.title ?? node.name,
           targetScript,
           earlierSynopsis,
@@ -291,7 +330,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
       });
 
     const startedAt = performance.now();
-    const response = await generateAiJson(model, [
+    const messages: { role: 'system' | 'user'; content: string }[] = [
       {
         role: 'system',
         content: systemPrompt,
@@ -300,22 +339,59 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
         role: 'user',
         content: userPrompt,
       },
-    ]);
-    logGenerationMetrics(
-      'comments',
-      `${model.provider}:${model.model}`,
-      startedAt,
-      systemPrompt + userPrompt,
-      response,
-    );
+    ];
+    let parsed: { comments: RawGeneratedComment[] } | undefined;
+    const attempts = model.provider === 'ollama' ? 2 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const response = await generateAiJson(
+        model,
+        messages,
+        model.provider === 'ollama'
+          ? { schema: buildCommentResponseSchema(personaSlots.length) }
+          : {},
+      );
+      logGenerationMetrics(
+        'comments',
+        `${model.provider}:${model.model}`,
+        startedAt,
+        systemPrompt + userPrompt,
+        response,
+      );
 
-    const parsed = parseGeneratedComments(response.message.content, personaSlots);
+      try {
+        parsed = parseGeneratedComments(
+          response.message.content,
+          personaSlots,
+          {
+            provider: model.provider,
+            model: model.model,
+            expectedCount: personaSlots.length,
+            inputTokens: response.prompt_eval_count,
+            outputTokens: response.eval_count,
+            stopReason: response.done_reason,
+          },
+          model.provider === 'ollama',
+        );
+        break;
+      } catch (error) {
+        if (
+          attempt + 1 === attempts ||
+          !(error instanceof AppError) ||
+          error.code !== 'AI_RESPONSE_INVALID'
+        )
+          throw error;
+        messages.push({
+          role: 'user',
+          content: `The previous response failed structural validation. Regenerate exactly ${personaSlots.length} comments in a single JSON object with a comments array. Each item needs nonempty content, tone and boolean usedContext. Keep the requested output language and persona order. Do not include explanations, thinking tags or Markdown fences.`,
+        });
+      }
+    }
 
     const savedRows = await serializeWorkspaceOperation(() =>
       context.withWorkspaceRepositories(workspacePath, async ({ documentComments }) =>
         documentComments.insertComments(
           node.id,
-          parsed.comments.map((comment) => ({
+          parsed!.comments.map((comment) => ({
             content: comment.content,
             tone: comment.tone,
             ageGroup: comment.ageGroup,
@@ -334,6 +410,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
     startAge,
     endAge,
     count,
+    outputLanguage = 'ko',
     targetTitle,
     targetScript,
     earlierSynopsis,
@@ -347,6 +424,7 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
     startAge: number;
     endAge: number;
     count: number;
+    outputLanguage?: ResolvedOutputLanguage;
     targetTitle: string;
     targetScript: string;
     earlierSynopsis: string;
@@ -363,8 +441,8 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
     }>;
     personaSlots: PersonaSlot[];
   }): { systemPrompt: string; userPrompt: string } {
-    const earlierSynopsisText = earlierSynopsis || '없음';
-    const previousChapterScriptText = previousChapterScript || '없음 (첫 화)';
+    const earlierSynopsisText = earlierSynopsis || 'None';
+    const previousChapterScriptText = previousChapterScript || 'None (first chapter)';
     const majorEventsText =
       majorEvents.length > 0
         ? (['상', '중', '하'] as const)
@@ -378,16 +456,16 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
             })
             .filter(Boolean)
             .join('\n')
-        : '없음';
+        : 'None';
     const charactersText =
       characters.length > 0
         ? characters
             .map(
               (character) =>
-                `- ${character.name} (${character.keywords.join(', ') || '키워드 없음'})\n  정보: ${character.info}\n  행동 요약: ${character.summary}`,
+                `- ${character.name} (${character.keywords.join(', ') || 'No keywords'})\n  Info: ${character.info}\n  Actions: ${character.summary}`,
             )
             .join('\n')
-        : '없음';
+        : 'None';
 
     const styleExampleText =
       styleExamples.length > 0
@@ -395,114 +473,98 @@ export function createCommentGenerationActions(context: WorkspaceServiceContext)
             .map(
               (example, index) => `
 [EXAMPLE ${index + 1}]
-조건: ${formatStyleExampleMeta(example)}
-댓글: ${example.content}
+Metadata: ${formatStyleExampleMeta(example)}
+Comment: ${example.content}
 `,
             )
             .join('\n')
-        : '없음';
+        : 'None';
 
-    const systemPrompt = `
-너는 웹소설 플랫폼의 실제 독자 댓글을 생성하는 시스템이다.
-
-절대 규칙:
-- 댓글의 직접 대상은 TARGET_SCRIPT뿐이다.
-- GROUP_CONTEXT는 세계관, 인물 관계, 앞뒤 흐름을 이해하기 위한 참고 자료로만 사용한다.
-- GROUP_CONTEXT에만 있고 TARGET_SCRIPT에 없는 사건, 설정, 반전, 결말은 일반 감상 댓글에서 직접 언급하지 않는다.
-- 단, TARGET_SCRIPT가 GROUP_CONTEXT의 확정된 사건과 모순될 때는 그 모순을 지적할 수 있다. 전문성은 설명의 깊이에만 반영한다.
-- STYLE_EXAMPLES는 댓글의 문체, 길이, 감정 표현, 말줄임 방식을 참고하기 위한 자료다.
-- STYLE_EXAMPLES의 내용을 그대로 복사하거나 비슷한 문장으로 바꿔 쓰지 않는다.
-- 댓글은 짧고 자연스러운 실제 독자 반응이어야 한다.
-- 출력은 반드시 JSON 객체 하나만 반환한다.
-- 마크다운, 설명, 코드블록, JSON 밖의 텍스트를 절대 포함하지 않는다.
-`;
+    const systemPrompt = `Generate natural reader comments for a fiction platform.
+${outputLanguageInstruction(outputLanguage)}
+- React directly only to TARGET_SCRIPT. GROUP_CONTEXT is reference for setting, relationships and continuity.
+- Do not spoil events, twists or endings present only in GROUP_CONTEXT. You may point out a clear contradiction with established context.
+- STYLE_EXAMPLES are the primary target for the surface voice: match their conversational density, omissions, rhythm and length. Reuse their linguistic style, never their story-specific facts, names or full sentences.
+- You are writing in the comment box immediately after reading, not composing feedback for an author. Do not summarize the scene to prove you read it or explain why each emotion is justified.
+- Being grounded means not inventing facts; it does NOT require listing evidence, quoting a scene or describing writing technique in every comment.
+- Comments must be brief, natural reader reactions, not editorial reviews.
+- Sound like separate readers who paused on something while reading and immediately typed a comment. Prefer reacting to that moment over reporting an overall impression of the chapter.
+- Internet voice comes from conversational rhythm and selective attention, not a layer of slang. Some readers are quiet or matter-of-fact; not everyone is joking, excited or trying to write a memorable line.
+- Return exactly one JSON object, without Markdown, explanations, code fences or text outside JSON.`;
 
     const allowedReactions = [...new Set(personaSlots.map((slot) => slot.reaction))];
     const personaSlotsText = personaSlots
       .map(
         (slot, index) =>
-          `${index + 1}. ageGroup=${slot.ageGroup}, expertiseLevel=${slot.expertiseLevel}, expertiseLabel="${slot.expertiseLabel}", interest="${slot.interest}", reaction="${slot.reaction}"`,
+          `${index + 1}. ageGroup=${slot.ageGroup}, expertiseLevel=${slot.expertiseLevel}, expertiseLabel="${slot.expertiseLabel}", interest="${slot.interest}", reaction="${slot.reaction}", speechRegister="${slot.speechRegister}", voiceStyle="${slot.voiceStyle}"`,
       )
       .join('\n');
 
     const userPrompt = `
-독자 조건:
-- 연령대: ${startAge}대 ~ ${endAge}대
-- 생성할 댓글 수: ${count}개
-
-PERSONA_SLOTS (댓글마다 반드시 지켜야 하는 순서와 조건):
+Reader age range: ${startAge}s to ${endAge}s. Generate exactly ${count} comments.
+PERSONA_SLOTS (required order and metadata):
 ${personaSlotsText}
-
-필드 규칙:
-- comments 배열의 길이는 정확히 ${count}개이며, i번째 댓글은 PERSONA_SLOTS의 i번째 조건을 그대로 사용한다.
-- ageGroup, expertiseLevel, expertiseLabel은 PERSONA_SLOTS에 주어진 값을 절대 바꾸지 않고 그대로 채운다. 이 값들은 이미 연령대/전문성 조합이 골고루 섞이도록 미리 정해둔 것이다.
-- interest는 해당 독자가 주로 관심을 갖는 대상이고, reaction은 기본 반응 성향이다. 전문성이나 연령과 독립적으로 적용한다. 두 값은 댓글 작성 지침이며 반환 필드를 추가하지 않는다.
-- tone은 선택된 반응 성향(${allowedReactions.join(', ')}) 중 하나만 사용한다. 원고에 근거가 있으면 배정된 reaction을 우선하되, 근거 없는 추측이나 비판을 만들어 성향을 억지로 맞추지 않는다. 배정된 성향이 어울리지 않으면 다른 선택된 성향으로 자연스럽게 반응한다.
-- usedContext는 GROUP_CONTEXT를 댓글 작성에 참고했으면 true, 아니면 false다.
-- 맞춤법 지적은 명백한 오류가 있고 문장에 관심을 가진 독자의 반응에 어울릴 때만 포함한다. 구어체 대사나 의도된 표현을 오류로 단정하지 않는다.
-
-댓글 작성 규칙:
-1. 현재 스크립트 안에 드러난 장면, 대사, 감정, 전개에 반응한다.
-2. 다양한 반응을 섞는다.
-3. expertiseLevel은 관찰과 해석의 깊이만 결정한다. 낮은 전문성은 눈에 보이는 장면에 반응하고, 높은 전문성은 인물 행동이나 복선의 작은 단서까지 알아챌 수 있다. 독서 경험이 많다고 말투를 정중하게 만들거나 분석 과정을 길게 설명하지 않는다. 알아챈 단서 하나를 툭 짚는 댓글도 가능하다.
-4. 높은 전문성을 비판이나 부정적 반응과 동일시하지 않는다. 모든 전문성에서 몰입, 칭찬, 기대, 질문, 추측, 아쉬움이 가능하며 반응 성향은 reaction을 참고한다. 낮은 전문성도 명백한 모순을 알아차릴 수 있다.
-5. ageGroup은 표현과 말투에 약하게만 반영한다. 나이를 이해력, 지적 수준, 문장 복잡도와 연결하지 않고 특정 연령에 줄임말이나 유행어를 강제하지 않는다.
-6. 모든 댓글이 같은 말투가 되지 않게 한다.
-7. STYLE_EXAMPLES가 있으면 문체 밀도, 길이, 구어체 정도를 적극적으로 참고한다.
-8. GROUP_CONTEXT와 TARGET_SCRIPT가 명백히 모순될 때는 자연스럽게 질문하거나 지적할 수 있다. 전문성이 높을수록 근거와 흐름을 더 깊게 살펴본다.
-9. 비판 댓글은 허용하지만 작가 개인 공격보다 장면, 전개, 대사, 캐릭터 행동, 문장 완성도에 대한 반응으로 쓴다.
-10. 읽다가 바로 댓글창에 적은 반응처럼 쓴다. 짧은 감탄, 문장 조각, 혼잣말, 툭 던지는 질문과 차분한 문장을 섞는다. 생략·반말·존댓말·줄임말·ㅋㅋ·ㅠㅠ는 페르소나에 맞게 사용한다. 감정을 매번 이유까지 풀어 설명하거나 모든 문장을 깔끔하게 마무리하지 않는다.
-11. 모든 댓글에 유행어, 초성, ㅋㅋ, ㅠㅠ를 억지로 붙이지 않는다. 한 사람이 쓴 것처럼 같은 어미와 감탄사를 반복하지 않는다.
-12. "흥미롭네요", "기대됩니다", "인상적입니다", "아쉬운 것 같습니다"처럼 AI 리뷰로 보이는 상투적인 총평은 피하고, 가능하면 장면 속 구체적인 대사·행동·소품을 집어 반응한다.
-13. interest에 따라 캐릭터는 행동·감정, 인물 관계는 대화·관계 변화, 전개는 사건·속도, 세계관은 설정·규칙, 문장은 표현·문장 흐름에 주목한다. 원고에 해당 관심사의 근거가 없으면 실제로 드러난 장면에 반응한다.
-14. 한 댓글은 눈에 걸린 장면이나 단서 하나에 반응해도 충분하다. 근거·평가·개선 제안을 한 세트로 붙이거나 칭찬 뒤에 단점을 덧붙이는 형식을 반복하지 않는다. 여러 댓글을 생성할 때는 한두 마디의 짧은 반응도 섞되 전부 같은 길이로 만들지 않는다.
-15. 날것의 말투를 만들려고 욕설, 일부러 틀린 맞춤법, 유행어를 덧붙이지 않는다. 표현은 자유로워도 원고에 없는 사실이나 다른 독자의 반응을 만들어내지 않는다.
-
-연속성 검토 규칙:
-- 댓글을 만들기 전에 GROUP_CONTEXT에서 확정된 사건, 캐릭터 생사, 관계 변화, 장소, 시간 순서를 먼저 확인한다.
-- TARGET_SCRIPT에서 같은 캐릭터나 설정이 다르게 등장하면 연속성 오류 후보로 판단한다.
-- 예: 이전 문서에서 죽은 캐릭터가 TARGET_SCRIPT에서 설명 없이 멀쩡히 활동하면 모순으로 지적한다.
-- 명백한 모순이 발견되고 질문·분석·지적 성향이 선택되어 있으면 해당 독자를 우선해 최소 1개 댓글에 반영한다. 선택되지 않은 반응 성향은 강제하지 않는다. 회상, 꿈, 의도적인 정보 은폐나 원고에 제시된 설명을 먼저 확인하고 모순을 단정하지 않는다.
-- 모순 지적 댓글의 usedContext는 true로 설정한다.
-- 모순 지적은 실제 독자 댓글처럼 짧게 쓴다. 예: "근데 얘 2화에서 죽지 않았나? 왜 갑자기 멀쩡함?"
-
-TARGET_SCRIPT 제목:
+Field rules:
+- comments length is exactly ${count}; comment i follows slot i.
+- Copy ageGroup, expertiseLevel and expertiseLabel from each slot unchanged, even when their labels use another language.
+- interest and reaction guide writing independently of age and expertise; do not add them as output fields.
+- tone must be one of these exact enum values: ${allowedReactions.join(', ')}. Prefer the assigned reaction when supported. Do not invent criticism or speculation to force a reaction; use another allowed reaction if necessary.
+- usedContext is true if GROUP_CONTEXT was used, otherwise false.
+- speechRegister and voiceStyle are required writing directions, not extra JSON fields. Follow each slot, including when all readers have the same age or expertise. Use STYLE_EXAMPLES within the assigned register and voice; a register is not a demand for polished sentences.
+Speech and age:
+- For Korean output, casual means natural 반말 (e.g. "이 문 왜 열려 있지", "여기서 끊네..."); polite means conversational 존댓말 (e.g. "이 문은 누가 열어둔 걸까요", "여기서 끝이라니요..."). These are style illustrations only; never copy their scenes into comments.
+- For English output, casual means informal conversational phrasing; polite means courteous conversational phrasing, not formal customer-service or essay prose.
+- quick-reaction: a brief, immediate fragment or exclamation; chatty: conversational asides or a question; understated: restrained, dry observation; thoughtful: one small inference said offhand, often as a fragment or quick question; never a polished reflective assessment. Vary length naturally, not according to a fixed sentence template.
+- Let age influence rhythm, vocabulary and expression within the assigned register: teens may use brisk immediate reactions; readers in their 20s–30s may use casual online conversation; readers in their 40s–50s may use measured conversational observations; readers in their 60s–80s may use unhurried, direct phrasing. These are flexible tendencies, not caricatures or claims about every reader. Younger readers can be thoughtful and older readers can be playful.
+- Every age can use either register. Never announce the reader's age, manufacture personal life experiences, equate age with intelligence, or force outdated slang, dialect, stock generational catchphrases or elder stereotypes.
+Writing rules:
+1. React to actual scenes, dialogue, emotions and developments in the manuscript. Mix varied reactions.
+2. Expertise affects depth of observation only, not formality, negativity or intelligence. Experienced readers may notice subtle clues in a short remark. All experience levels can praise, anticipate, question or criticize; beginners can notice obvious contradictions.
+3. Apply the speech and age directions above so the comments sound like different people, not one reviewer using different labels.
+4. Vary voices, lengths and phrasing. Use fragments, questions, quiet observations and occasional short exclamations as appropriate to the output language. Do not force slang, laughter, deliberate misspellings or profanity.
+5. Match STYLE_EXAMPLES in how casually they are actually written, not merely in topic. A casual ending attached to an otherwise formal review is still wrong. Preserve unfinished thoughts, omitted subjects and compressed wording where natural.
+5a. At least half the batch should be a single short utterance or fragment, roughly the length of the short STYLE_EXAMPLES. Other comments may be one or two conversational sentences when an actual question or inference needs them. Do not give every reader a two-clause explanation.
+5b. For Korean, casual comments may naturally end in nominalized or clipped forms such as "…임?", "…인 듯", "…네", "…는데", or omit an ending. Polite comments can still be brief, conversational and incomplete. Do not end every casual comment with explanatory "…생각이 들어", "…궁금하다", "…기대된다" or "…아쉬웠어". These forms are allowed occasionally, not as a batch template.
+5c. Everyday reader language comes before literary terminology. Do not default to "등장 타이밍", "분위기를 살려서", "규칙의 신호로 쓰인", "시점 때문에 의아하다" or "장면이 인상적이다" when a direct reaction would do. Analysis means noticing a clue, not describing the author's craft.
+5d. Style contrast only, NOT source facts to copy: polished "앞선 사건과 인물의 행동이 상충해서 의문이 든다" → conversational "근데 아까는 안 된다며?"; polished "결말이 긴장감을 높여 다음 화가 기대된다" → conversational "아니 여기서 끊어?" / "여기서 끊으시면 어떡해요". Apply this degree of compression to real details from TARGET_SCRIPT, without copying these invented situations.
+5e. Silently reread the batch before returning it. Rewrite comments that sound like a synopsis, school book report, editorial assessment or a complete explanation of an emotion. Keep a real question's necessary detail, the assigned register, distinct voices and the exact response schema. Do not output this self-check.
+5f. Let most comments latch onto one actual action, line, choice or small detail in TARGET_SCRIPT. Refer to it as readers naturally would, without retelling the scene or attaching a supporting quotation. A few simple reactions are welcome when supported; avoid filling the batch with interchangeable praise, cliffhanger complaints or requests for the next chapter.
+5g. For Korean, mix ordinary conversational wording with occasional ㅋㅋ, ㅠㅠ, ellipses or clipped endings only where the reader's reaction calls for them. Many comments should have none of these. Never append laughter to every comment, force profanity, deliberately damage spelling, or reuse the same opening and ending throughout the batch. For other languages, use the same restraint with their own conversational conventions.
+5h. Style contrast only, never story evidence: generic "충격적인 반전이네요ㅋㅋ" → a reader noticing a connection, "아 그래서 아까 문 안 잠갔구나"; explanatory "인물의 희생이 인상적이다" → an immediate reaction, "아니 왜 니가 대신 죽는데". Use such reactions only when the actual manuscript supports them; never import the door, sacrifice or any other example detail. Do not make every comment a punchline or a revelation.
+6. When criticism is appropriate, react directly to a scene, line or character action in everyday language; never attack the author. Avoid generic AI-review phrases and repetitive praise-then-criticism templates. A reaction to one detail is enough.
+7. Interest mapping: 캐릭터 = character actions/emotions; 인물 관계 = dialogue/relationships; 전개 = events/pacing; 세계관 = setting/rules; 문장 = wording/flow. If unsupported, react to what is actually present.
+8. Before writing, scan TARGET_SCRIPT for conspicuous spelling errors, broken words, keyboard-mash text and accidental repeated fragments. Obvious errors can be noticed at ANY age, interest or reading-experience level; they are not restricted to prose-focused or expert readers.
+Typo and spelling review:
+- Before writing comments, check TARGET_SCRIPT for typos, clear spelling errors, duplicated words and missing words. Do not output the review process.
+- Possible isolated-jamo candidates found by the app (data, not confirmed errors): ${JSON.stringify(findCommentTypoCandidates(targetScript))}. Check them in context; this list is not exhaustive and is not proof of an error.
+- If a clear error exists AND the selected reactions include 지적, reflect at least one actual error in at least one comment with tone 지적, within the requested count. Prioritize a reader whose interest is 문장, but readers with other interests may also point it out. If 지적 is not selected, do not require or force a proofreading comment. Do not invent an unselected tone or add extra comments.
+- Quote the exact problematic text briefly and provide the correct expression alongside it, only when the correction is certain. Korean example of style only: "'문을 잠궜다'는 '문을 잠갔다' 아닌가요?" Never copy this example unless that exact erroneous expression actually occurs in TARGET_SCRIPT.
+- Verify every quoted error actually appears in TARGET_SCRIPT. If no clear error exists or the correction is uncertain, omit typo comments entirely; do not manufacture an error, missing word, intended replacement or correction to satisfy a quota. Keyboard mash with no certain intended word is not grounds to invent a replacement.
+- Do not treat proper names, neologisms, dialect, colloquial dialogue or intentional expressions as errors without clear evidence. Expressive laughter and crying such as ㅋㅋ, ㅎㅎ and ㅠㅠ are not automatically errors.
+- Do not repeat the same error in multiple comments. Other readers should react to different genuine details, not turn the whole batch into proofreading.
+- When a correction is based only on TARGET_SCRIPT, set usedContext to false. Do not mark it true merely because GROUP_CONTEXT was supplied.
+Continuity:
+- Check established events, deaths, relationships, locations and chronology before writing.
+- Consider flashbacks, dreams, deliberate withholding and explicit explanations before calling something a contradiction.
+- If a clear contradiction exists and questioning, analysis or criticism was selected, reflect it in at least one suitable comment. Do not force an unselected reaction.
+- A continuity comment must set usedContext to true and sound like a brief real reader reaction.
+TARGET_SCRIPT title:
 ${targetTitle}
-
 TARGET_SCRIPT:
 ${targetScript}
-
-GROUP_CONTEXT (n-2화까지 줄거리):
+GROUP_CONTEXT (synopsis through chapter n-2):
 ${earlierSynopsisText}
-
-GROUP_CONTEXT (n-1화 원문):
+GROUP_CONTEXT (chapter n-1 manuscript):
 ${previousChapterScriptText}
-
-GROUP_CONTEXT (n-1화까지 주요 사건, 중요도별):
+GROUP_CONTEXT (earlier events by importance):
 ${majorEventsText}
-
-GROUP_CONTEXT (미해결 복선):
-${plotHooks.length ? plotHooks.map((hook) => `- (${hook.plantedAt}) ${hook.description}`).join('\n') : '없음'}
-
-GROUP_CONTEXT (n-1화까지 등장인물 정리):
+GROUP_CONTEXT (unresolved threads):
+${plotHooks.length ? plotHooks.map((hook) => '- (' + hook.plantedAt + ') ' + hook.description).join('\n') : 'None'}
+GROUP_CONTEXT (earlier characters):
 ${charactersText}
-
 STYLE_EXAMPLES:
 ${styleExampleText}
-
-반환 형식 예시:
-{
-  "comments": [
-    {
-      "ageGroup": 20,
-      "expertiseLevel": 20,
-      "expertiseLabel": "가볍게 즐기는 독자",
-      "tone": "몰입",
-      "usedContext": false,
-      "content": "댓글 내용"
-    }
-  ]
-}
+Return {"comments":[{"ageGroup":20,"expertiseLevel":20,"expertiseLabel":"copy slot label","tone":"copy allowed enum","usedContext":false,"content":"reader reaction in the specified output language"}]}
 `;
 
     return { systemPrompt, userPrompt };
@@ -511,23 +573,41 @@ ${styleExampleText}
   function parseGeneratedComments(
     content: string,
     personaSlots: PersonaSlot[],
+    metadata: Parameters<typeof logCommentValidationFailure>[1],
+    normalizeWrapper = false,
   ): { comments: RawGeneratedComment[] } {
     let parsed: GenerateCommentsResult;
 
     try {
-      parsed = JSON.parse(content) as GenerateCommentsResult;
+      const cleaned = normalizeWrapper
+        ? content
+            .trim()
+            .replace(/^<think\b[^>]*>[\s\S]*?<\/think>\s*/i, '')
+            .replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1')
+            .trim()
+        : content;
+      parsed = JSON.parse(cleaned) as GenerateCommentsResult;
     } catch {
-      throw new Error(`댓글 생성 결과를 JSON으로 해석하지 못했습니다: ${content}`);
+      logCommentValidationFailure(content, metadata, 'invalid_json');
+      throw new AppError('AI_RESPONSE_INVALID', {
+        diagnostic: '댓글 생성 결과를 JSON으로 해석하지 못했습니다.',
+      });
     }
 
     if (!parsed || !Array.isArray(parsed.comments)) {
-      throw new Error(`댓글 생성 결과에 comments 배열이 없습니다: ${content}`);
+      logCommentValidationFailure(content, metadata, 'missing_comments_array');
+      throw new AppError('AI_RESPONSE_INVALID', {
+        diagnostic: '댓글 생성 결과에 comments 배열이 없습니다.',
+      });
     }
 
     if (parsed.comments.length < personaSlots.length) {
-      throw new Error(
-        `댓글 생성 결과 개수(${parsed.comments.length})가 요청한 개수(${personaSlots.length})와 다릅니다.`,
-      );
+      logCommentValidationFailure(content, metadata, 'too_few_comments', {
+        actualCount: parsed.comments.length,
+      });
+      throw new AppError('AI_RESPONSE_INVALID', {
+        diagnostic: `댓글 생성 결과 개수(${parsed.comments.length})가 요청한 개수(${personaSlots.length})와 다릅니다.`,
+      });
     }
 
     // ageGroup/expertiseLevel/expertiseLabel은 모델이 실수로 바꿔도 미리 정해둔 분포가 깨지지 않도록 서버에서 강제로 덮어쓴다.
@@ -535,9 +615,13 @@ ${styleExampleText}
     const comments = parsed.comments.slice(0, personaSlots.length).map((comment, index) => {
       const persona = personaSlots[index];
       if (!persona || !comment || typeof comment.content !== 'string' || !comment.content.trim()) {
-        throw new Error(
-          `댓글 생성 결과의 ${index + 1}번째 항목이 올바르지 않습니다. 다시 생성해주세요.`,
-        );
+        logCommentValidationFailure(content, metadata, 'invalid_comment', {
+          actualCount: parsed.comments!.length,
+          itemIndex: index + 1,
+        });
+        throw new AppError('AI_RESPONSE_INVALID', {
+          diagnostic: `댓글 생성 결과의 ${index + 1}번째 항목이 올바르지 않습니다. 다시 생성해주세요.`,
+        });
       }
       return {
         ...comment,

@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import {
   readBackupStatus,
   recordSuccessfulBackup,
@@ -25,18 +26,17 @@ async function copyRegularTree(source: string, target: string) {
   }
   await fs.mkdir(target, { recursive: true });
   for (const entry of entries) {
-    if (entry.isSymbolicLink())
-      throw new Error('백업 폴더에 바로가기나 심볼릭 링크를 포함할 수 없습니다.');
+    if (entry.isSymbolicLink()) throw new AppError('BACKUP_SYMLINK_NOT_ALLOWED');
     const from = path.join(source, entry.name);
     const to = path.join(target, entry.name);
     if (entry.isDirectory()) await copyRegularTree(from, to);
     else if (entry.isFile()) await fs.copyFile(from, to);
-    else throw new Error('지원하지 않는 백업 파일입니다.');
+    else throw new AppError('BACKUP_FILE_UNSUPPORTED');
   }
 }
 
 async function checkDatabase(databasePath: string) {
-  if (!(await fs.lstat(databasePath)).isFile()) throw new Error('백업 DB가 올바르지 않습니다.');
+  if (!(await fs.lstat(databasePath)).isFile()) throw new AppError('BACKUP_DATABASE_INVALID');
   const db = await new Promise<sqlite3.Database>((resolve, reject) => {
     const connection = new sqlite3.Database(databasePath, sqlite3.OPEN_READONLY, (error) => {
       if (error) reject(error);
@@ -46,7 +46,7 @@ async function checkDatabase(databasePath: string) {
   try {
     const result = await all<Record<string, string>>(db, 'PRAGMA integrity_check');
     if (result.length !== 1 || Object.values(result[0])[0] !== 'ok')
-      throw new Error('백업 DB가 손상되었습니다.');
+      throw new AppError('BACKUP_DATABASE_CORRUPT');
   } finally {
     await new Promise<void>((resolve, reject) =>
       db.close((error) => (error ? reject(error) : resolve())),
@@ -60,7 +60,7 @@ function assertOutsideWorkspace(workspace: string, destination: string) {
     !relative ||
     (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
   ) {
-    throw new Error('백업과 복원 위치는 현재 작업 폴더 밖에서 선택해주세요.');
+    throw new AppError('BACKUP_LOCATION_INVALID');
   }
 }
 
@@ -73,7 +73,7 @@ export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
       const workspace = await context.getCurrentWorkspacePath();
       assertOutsideWorkspace(workspace, parentPath);
       const store = await readStore(workspace);
-      if (!store) throw new Error('백업할 작업 폴더를 찾을 수 없습니다.');
+      if (!store) throw new AppError('BACKUP_WORKSPACE_NOT_FOUND');
       for (const document of store.documents) await readDocumentContent(workspace, document.id);
       const target = await fs.mkdtemp(path.join(parentPath, 'groomi-backup-'));
       await withDatabase(workspace, async (db) => {
@@ -106,7 +106,7 @@ export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
         await fs.readFile(path.join(source, 'groomi-backup.json'), 'utf8'),
       );
       if (manifest.formatVersion !== 1 || typeof manifest.sourcePath !== 'string') {
-        throw new Error('그루미 백업 폴더가 아닙니다.');
+        throw new AppError('BACKUP_FOLDER_INVALID');
       }
       await checkDatabase(getReadableWorkspaceDatabasePath(source));
       const target = await fs.mkdtemp(path.join(parentPath, 'groomi-restored-'));
@@ -117,10 +117,9 @@ export function createWorkspaceBackupActions(context: WorkspaceServiceContext) {
       await copyRegularTree(path.join(source, 'scripts'), path.join(target, 'scripts'));
       await copyRegularTree(path.join(source, 'images'), path.join(target, 'images'));
       const store = await readStore(target);
-      if (!store) throw new Error('백업에 작업 폴더 정보가 없습니다.');
+      if (!store) throw new AppError('BACKUP_WORKSPACE_INFO_MISSING');
       for (const document of store.documents) {
-        if (!/^[a-zA-Z0-9-]+$/.test(document.id))
-          throw new Error('백업 문서 ID가 올바르지 않습니다.');
+        if (!/^[a-zA-Z0-9-]+$/.test(document.id)) throw new AppError('BACKUP_DOCUMENT_ID_INVALID');
         await readDocumentContent(target, document.id);
       }
       const rebaseCover = (cover: string) => {

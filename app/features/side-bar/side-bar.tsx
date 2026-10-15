@@ -1,3 +1,4 @@
+import { useTranslation } from '~/hooks/use-translation';
 import { TbChevronLeft, TbMenu2, TbPlus, TbSettings } from 'react-icons/tb';
 import { Link } from 'react-router';
 import AddWorkspaceButton from '~/components/add-workspace-modal/add-workspace-button';
@@ -10,6 +11,7 @@ import DnIconButton from '~/components/common/buttons/dn-icon-button';
 import logo from '~/assets/logo.png';
 
 const SideBar = () => {
+  const { t } = useTranslation();
   const { workspacePath } = useWorkspacePath();
   const [workspaceTree, setWorkspaceTree] = useState<WorkspaceNode[]>([]);
   const [collapsed, setCollapsed] = useState(false);
@@ -63,7 +65,9 @@ const SideBar = () => {
           )}
           <div className={`shrink-0 flex-1 flex ${collapsed ? 'justify-center' : 'justify-end'}`}>
             <DnIconButton
-              aria-label={collapsed ? '사이드바 열기' : '사이드바 닫기'}
+              aria-label={
+                collapsed ? t('navigation.expandSidebar') : t('navigation.collapseSidebar')
+              }
               onClick={() => setCollapsed((prev) => !prev)}
               size={'s'}
             >
@@ -82,7 +86,7 @@ const SideBar = () => {
             <span
               className={`overflow-hidden whitespace-nowrap text-sm font-semibold transition-all duration-300`}
             >
-              홈으로 이동
+              {t('navigation.home')}
             </span>
           )}
         </Link>
@@ -101,7 +105,7 @@ const SideBar = () => {
                 renderTrigger={(onClick) => (
                   <DnIconButton
                     onClick={onClick}
-                    aria-label='새 문서 혹은 그룹 추가'
+                    aria-label={t('navigation.addItem')}
                     variant={'dark'}
                     size={'s'}
                   >
@@ -132,7 +136,7 @@ const SideBar = () => {
           className={`flex items-center gap-2 hover:bg-stone-100 rounded-full ${collapsed ? 'p-1' : 'px-3 py-2'}`}
         >
           <TbSettings size={24} />
-          {!collapsed && 'Settings'}
+          {!collapsed && t('settings.title')}
         </Link>
       </div>
     </aside>

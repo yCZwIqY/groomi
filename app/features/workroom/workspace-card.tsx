@@ -1,12 +1,21 @@
+import { useTranslation } from '~/hooks/use-translation';
 import { TbArrowRight, TbClock, TbFileText, TbFolder } from 'react-icons/tb';
 
-function formatRelativeDate(value?: string) {
-  if (!value) return '날짜 정보 없음';
+function formatRelativeDate(value: string | undefined, locale: string) {
+  if (!value || !Number.isFinite(new Date(value).getTime()))
+    return locale === 'en-US' ? 'Date unavailable' : '날짜 정보 없음';
 
   const date = new Date(value);
   const diff = Date.now() - date.getTime();
   const minutes = Math.floor(diff / 60_000);
 
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  if (locale === 'en-US') {
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return relative.format(-minutes, 'minute');
+    if (minutes < 1440) return relative.format(-Math.floor(minutes / 60), 'hour');
+    if (minutes < 10080) return relative.format(-Math.floor(minutes / 1440), 'day');
+  }
   if (minutes < 1) return '방금 전';
   if (minutes < 60) return `${minutes}분 전`;
 
@@ -16,7 +25,7 @@ function formatRelativeDate(value?: string) {
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}일 전`;
 
-  return new Intl.DateTimeFormat('ko-KR', {
+  return new Intl.DateTimeFormat(locale, {
     month: 'long',
     day: 'numeric',
   }).format(date);
@@ -35,6 +44,7 @@ export default function WorkspaceCard({
   item: WorkspaceNode;
   onClick: (item: WorkspaceNode) => void;
 }) {
+  const { locale } = useTranslation();
   const isDocument = item.type === 'document';
 
   return (
@@ -62,7 +72,7 @@ export default function WorkspaceCard({
       <div className='mt-1 line-clamp-1 text-xs text-neutral-400'>{item.parentPath}</div>
       <div className='mt-auto flex items-center gap-1.5 pt-3 text-xs text-neutral-400'>
         <TbClock />
-        {formatRelativeDate(item.updatedAt)}
+        {formatRelativeDate(item.updatedAt, locale)}
       </div>
     </button>
   );

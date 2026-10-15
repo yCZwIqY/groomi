@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useEffect, useRef, useState } from 'react';
 import {
   getTrashItems,
@@ -20,7 +21,10 @@ const TrashNode = () => {
     try {
       setTrashItems(await getTrashItems());
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '휴지통을 불러오지 못했습니다.', 'danger');
+      showToast(
+        error instanceof Error ? error.message : getErrorMessage('GROOMI_ERROR:TRASH_LOAD_FAILED'),
+        'danger',
+      );
     }
   };
   const handleRestoreItems = async (items: WorkspaceNode[]) => {
@@ -45,7 +49,8 @@ const TrashNode = () => {
           else await restoreWorkspace(item.path);
         } catch (error) {
           failed++;
-          lastError = error instanceof Error ? error.message : '복원에 실패했습니다.';
+          lastError =
+            error instanceof Error ? error.message : getErrorMessage('GROOMI_ERROR:RESTORE_FAILED');
         }
         remaining = await getTrashItems();
       }
@@ -54,7 +59,10 @@ const TrashNode = () => {
       else showToast('선택한 휴지통 항목을 복원했습니다.', 'success');
     } catch (error) {
       await loadTrashItems();
-      showToast(error instanceof Error ? error.message : '복원에 실패했습니다.', 'danger');
+      showToast(
+        error instanceof Error ? error.message : getErrorMessage('GROOMI_ERROR:RESTORE_FAILED'),
+        'danger',
+      );
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -77,7 +85,8 @@ const TrashNode = () => {
           else await purgeWorkspace(item.path);
         } catch (error) {
           failed++;
-          lastError = error instanceof Error ? error.message : '영구 삭제에 실패했습니다.';
+          lastError =
+            error instanceof Error ? error.message : getErrorMessage('GROOMI_ERROR:DELETE_FAILED');
         }
       }
       await loadTrashItems();

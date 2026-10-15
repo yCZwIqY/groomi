@@ -1,3 +1,4 @@
+import { AppError } from '../../common/app-error.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -47,11 +48,11 @@ export function sanitizeNodeName(name: string) {
   const trimmedName = name.trim();
 
   if (!trimmedName) {
-    throw new Error('이름이 비어 있습니다.');
+    throw new AppError('NAME_REQUIRED');
   }
 
   if (/[\\/:*?"<>|]/.test(trimmedName)) {
-    throw new Error('이름에 사용할 수 없는 문자가 포함되어 있습니다.');
+    throw new AppError('NAME_INVALID');
   }
 
   return trimmedName;

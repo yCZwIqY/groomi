@@ -1,0 +1,47 @@
+vite v8.0.12 building client environment for production...
+[2K
+transforming...✓ 224 modules transformed.
+rendering chunks...
+computing gzip size...
+build/client/.vite/manifest.json                        6.10 kB │ gzip:   0.97 kB
+build/client/assets/logo-CzrccAAO.png                 402.63 kB
+build/client/assets/SUIT-Variable-gqD86R3M.woff2      624.53 kB
+build/client/assets/root-BTgdyZhm.css                  55.82 kB │ gzip:   9.84 kB
+build/client/assets/manuscript.detail-DZaW0xcT.js       0.13 kB │ gzip:   0.14 kB
+build/client/assets/index-CeORY6Zx.js                   0.15 kB │ gzip:   0.15 kB
+build/client/assets/use-backup-status-VjQXzxOU.js       0.85 kB │ gzip:   0.49 kB
+build/client/assets/design-system-AWha7xv0.js           0.96 kB │ gzip:   0.36 kB
+build/client/assets/root-8VR_8dh-.js                    0.99 kB │ gzip:   0.56 kB
+build/client/assets/use-background-tasks-B6Bw6lx1.js    1.21 kB │ gzip:   0.60 kB
+build/client/assets/main-layout-D9MhN8WY.js             3.31 kB │ gzip:   1.51 kB
+build/client/assets/add-workspace-button-rfSGEpfZ.js    3.45 kB │ gzip:   1.62 kB
+build/client/assets/react-dom-BYVSOnXK.js               3.54 kB │ gzip:   1.34 kB
+build/client/assets/side-bar-uG5JO8Tg.js                5.76 kB │ gzip:   2.19 kB
+build/client/assets/work-room-DrW6MRc0.js               6.21 kB │ gzip:   2.20 kB
+build/client/assets/document-api-CQ_Tp4UK.js            8.16 kB │ gzip:   3.23 kB
+build/client/assets/selector-B6jCPGuz.js                9.20 kB │ gzip:   3.66 kB
+build/client/assets/dist-Bzpq6_63.js                   19.50 kB │ gzip:   7.87 kB
+build/client/assets/dn-button-BOhZYHiw.js              24.56 kB │ gzip:   6.00 kB
+build/client/assets/setting-C_F7mng1.js                38.53 kB │ gzip:  11.15 kB
+build/client/assets/jsx-runtime-DYUlFg1F.js           129.00 kB │ gzip:  42.57 kB
+build/client/assets/entry.client-Bp7jGP14.js          183.06 kB │ gzip:  58.04 kB
+build/client/assets/manuscript-CmqXMzvC.js            436.55 kB │ gzip: 136.21 kB
+
+✓ built in 1.25s
+vite v8.0.12 building ssr environment for production...
+[2K
+transforming...✓ 11 modules transformed.
+rendering chunks...
+✓ 2 assets cleaned from React Router server build.
+build\client\assets\SUIT-Variable-gqD86R3M.woff2
+build\server\assets\server-build-BTgdyZhm.css
+
+SPA Mode: Generated build\client\index.html
+Removing the server build in C:\project\groomi\build\server due to ssr:false
+computing gzip size...
+build/server/.vite/manifest.json                    0.43 kB │ gzip: 0.21 kB
+build/server/assets/SUIT-Variable-gqD86R3M.woff2  624.53 kB
+build/server/assets/server-build-BTgdyZhm.css      55.82 kB │ gzip: 9.84 kB
+build/server/index.js                              13.28 kB │ gzip: 3.09 kB
+
+✓ built in 387ms

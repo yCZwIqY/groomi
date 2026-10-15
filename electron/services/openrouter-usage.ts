@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -36,7 +37,7 @@ export function createOpenRouterUsageStore(filePath: string) {
         typeof parsed.records !== 'object' ||
         Array.isArray(parsed.records)
       )
-        throw new Error('invalid usage file');
+        throw new AppError('USAGE_FILE_INVALID');
       for (const [id, usage] of Object.entries(parsed.records)) {
         const value = usage as LocalAiUsage;
         if (
@@ -51,12 +52,12 @@ export function createOpenRouterUsageStore(filePath: string) {
             'missingTokenResponses',
           ].every((field) => tokenCount(value[field as keyof LocalAiUsage]))
         )
-          throw new Error('invalid usage record');
+          throw new AppError('USAGE_RECORD_INVALID');
       }
       return parsed.records;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-      throw new Error('Groomi 사용량 기록을 읽지 못했습니다. 기존 기록은 보존했습니다.');
+      throw new AppError('USAGE_READ_FAILED');
     }
   }
   return {

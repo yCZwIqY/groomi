@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useBlocker } from 'react-router';
 import { updateDocument } from '~/lib/electron/document-api';
@@ -135,7 +136,7 @@ export function useDocumentSave(props: Props) {
       .catch(() => {
         if (!cancelled) {
           blocker.reset();
-          showToast('원고 저장에 실패하여 이동하지 않았습니다.', 'danger');
+          showToast(getErrorMessage('GROOMI_ERROR:NAVIGATION_SAVE_FAILED'), 'danger');
         }
       });
     return () => {
@@ -154,9 +155,7 @@ export function useDocumentSave(props: Props) {
           allowClose.current = true;
           window.close();
         })
-        .catch(() =>
-          showToast('저장에 실패하여 창을 닫지 않았습니다. 다시 저장해주세요.', 'danger'),
-        );
+        .catch(() => showToast(getErrorMessage('GROOMI_ERROR:CLOSE_SAVE_FAILED'), 'danger'));
     };
     window.addEventListener('beforeunload', beforeUnload);
     return () => window.removeEventListener('beforeunload', beforeUnload);

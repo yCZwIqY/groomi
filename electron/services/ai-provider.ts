@@ -1,3 +1,5 @@
+import { beginAiUsageRequest, recordAiUsageResponse } from './ai-task-usage.js';
+import { AppError, type ErrorCode } from '../common/app-error.js';
 import ollama from 'ollama';
 import { getAiCredentials } from './ai-credentials.js';
 import { getOpenRouterUsageStore, type AiUsageRecord } from './openrouter-usage.js';
@@ -24,7 +26,7 @@ export async function resolveAiConfiguration(setting: {
 }): Promise<AiConfiguration> {
   const provider = setting.aiProvider ?? 'ollama';
   const model = provider === 'openrouter' ? setting.openRouterModel : setting.selectedLLMModel;
-  if (!model) throw new Error('설정에서 AI 모델을 선택해주세요.');
+  if (!model) throw new AppError('AI_MODEL_REQUIRED');
   const apiKey = provider === 'openrouter' ? await (await getAiCredentials()).readKey() : undefined;
   return {
     provider,
@@ -42,20 +44,16 @@ export async function resolveAiConfiguration(setting: {
 function requestError(status: number, result?: { error?: { metadata?: { raw?: unknown } } }) {
   const raw = result?.error?.metadata?.raw;
   if (status === 429 && typeof raw === 'string' && /temporarily rate-limited upstream/i.test(raw)) {
-    return new Error(
-      '모델 제공자의 요청이 일시적으로 제한되었습니다. 잠시 후 재시도하거나 다른 모델을 선택해주세요.',
-    );
+    return new AppError('AI_UPSTREAM_RATE_LIMITED');
   }
-  const messages: Record<number, string> = {
-    400: '모델 또는 요청 설정이 올바르지 않습니다. 다른 모델을 선택해주세요.',
-    401: 'OpenRouter API 키가 유효하지 않습니다. 다시 등록해주세요.',
-    402: 'OpenRouter 잔액이 부족합니다. 계정의 크레딧을 확인해주세요.',
-    403: 'OpenRouter에서 이 요청을 허용하지 않았습니다. 계정 설정을 확인해주세요.',
-    429: 'OpenRouter 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.',
+  const codes: Record<number, ErrorCode> = {
+    400: 'OPENROUTER_BAD_REQUEST',
+    401: 'OPENROUTER_UNAUTHORIZED',
+    402: 'OPENROUTER_CREDITS_REQUIRED',
+    403: 'OPENROUTER_FORBIDDEN',
+    429: 'OPENROUTER_RATE_LIMITED',
   };
-  return new Error(
-    messages[status] ?? 'OpenRouter 요청에 실패했습니다. 잠시 후 다시 시도해주세요.',
-  );
+  return new AppError(codes[status] ?? 'OPENROUTER_FAILED');
 }
 
 function logOpenRouterError(
@@ -134,17 +132,16 @@ export async function requestOpenRouter(
     return result;
   } catch (error) {
     if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      throw new Error('OpenRouter 응답 시간이 초과됐습니다. 다시 시도해주세요.');
+      throw new AppError('OPENROUTER_TIMEOUT');
     }
-    if (error instanceof TypeError)
-      throw new Error('OpenRouter에 연결하지 못했습니다. 네트워크를 확인해주세요.');
+    if (error instanceof TypeError) throw new AppError('OPENROUTER_CONNECTION_FAILED');
     throw error;
   }
 }
 
 export async function listOpenRouterModels(): Promise<OpenRouterModel[]> {
   const result = await requestOpenRouter('models');
-  if (!Array.isArray(result.data)) throw new Error('모델 목록 형식이 올바르지 않습니다.');
+  if (!Array.isArray(result.data)) throw new AppError('AI_MODEL_LIST_INVALID');
   return result.data
     .filter(
       (model: any) =>
@@ -180,14 +177,19 @@ export async function generateAiJson(
     });
   }
   if (configuration.provider === 'ollama') {
-    return ollama.chat({
-      model: configuration.model,
-      messages,
-      format: options.schema ?? 'json',
-      options: { temperature: options.temperature, num_ctx: options.numCtx },
-    });
+    try {
+      return await ollama.chat({
+        model: configuration.model,
+        messages,
+        format: options.schema ?? 'json',
+        options: { temperature: options.temperature, num_ctx: options.numCtx },
+      });
+    } catch (error) {
+      throw new AppError('OLLAMA_CONNECTION_FAILED', { cause: error });
+    }
   }
-  if (!configuration.apiKey) throw new Error('OpenRouter API 키를 등록해주세요.');
+  if (!configuration.apiKey) throw new AppError('OPENROUTER_KEY_REQUIRED');
+  beginAiUsageRequest();
   let result: any;
   const recordUsage = async (record: AiUsageRecord) => {
     try {
@@ -214,18 +216,22 @@ export async function generateAiJson(
     await recordUsage({ failed: true });
     throw error;
   }
+  recordAiUsageResponse(
+    result.usage?.prompt_tokens,
+    result.usage?.completion_tokens,
+    result.usage?.cost,
+  );
   await recordUsage({
     failed: false,
     inputTokens: result.usage?.prompt_tokens,
     outputTokens: result.usage?.completion_tokens,
   });
   const content = result.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim())
-    throw new Error('AI가 빈 응답을 반환했습니다. 다시 시도해주세요.');
-  if (result.choices[0].finish_reason === 'length')
-    throw new Error('AI 응답이 길이 제한으로 중단됐습니다. 다른 모델을 선택해주세요.');
+  if (typeof content !== 'string' || !content.trim()) throw new AppError('AI_EMPTY_RESPONSE');
+  if (result.choices[0].finish_reason === 'length') throw new AppError('AI_RESPONSE_TRUNCATED');
   return {
     message: { content },
+    done_reason: result.choices[0].finish_reason as string,
     prompt_eval_count: result.usage?.prompt_tokens,
     eval_count: result.usage?.completion_tokens,
   };

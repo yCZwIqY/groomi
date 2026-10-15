@@ -1,6 +1,17 @@
 export {};
 
 declare global {
+  type AiTaskUsage = {
+    provider: 'openrouter';
+    inputTokens: number | null;
+    outputTokens: number | null;
+    requestCount: number;
+    complete: boolean;
+    costUsd: number | null;
+    costComplete: boolean;
+  };
+  type AiTaskResult<T> = { result: T; usage?: AiTaskUsage };
+
   interface WorkspaceBackupStatus {
     workspacePath: string;
     lastBackupAt: string | null;
@@ -148,6 +159,7 @@ declare global {
   };
 
   type Setting = {
+    aiOutputLanguage?: 'auto' | 'ko' | 'en';
     aiProvider: AiProvider;
     openRouterModel: string | null;
     hasOpenRouterKey: boolean;
@@ -274,6 +286,7 @@ declare global {
       restoreDocument: (documentPath: string) => Promise<{ restored: boolean; path: string }>;
       updateDocument: (documentPath: string, data: DocumentUpdatePayload) => Promise<WorkspaceNode>;
 
+      updateOutputLanguage: (language: 'auto' | 'ko' | 'en') => Promise<Setting>;
       updateAiSettings: (provider: AiProvider, model: string | null) => Promise<Setting>;
       saveOpenRouterKey: (key: string) => Promise<void>;
       deleteOpenRouterKey: () => Promise<void>;
@@ -288,8 +301,8 @@ declare global {
       removeFile: (filePath: string) => Promise<void>;
       showInFolder: (filePath: string) => Promise<void>;
 
-      generateManuscriptReview: (documentPath: string) => Promise<ManuscriptReview>;
-      generateStoryMemory: (documentPath: string) => Promise<StoryMemoryDraft>;
+      generateManuscriptReview: (documentPath: string) => Promise<AiTaskResult<ManuscriptReview>>;
+      generateStoryMemory: (documentPath: string) => Promise<AiTaskResult<StoryMemoryDraft>>;
       saveStoryMemory: (documentPath: string, draft: StoryMemoryDraft) => Promise<StoryMemory>;
       getLatestStoryMemory: (groupPath: string) => Promise<StoryMemory | null>;
 
@@ -297,7 +310,9 @@ declare global {
       listOllamaModels: () => Promise<{ models: OllamaModel[] }>;
 
       addCommentExample: (payload: AddCommentExamplePayload) => Promise<CommentExample>;
-      generateComments: (payload: GenerateCommentsPayload) => Promise<GeneratedComment[]>;
+      generateComments: (
+        payload: GenerateCommentsPayload,
+      ) => Promise<AiTaskResult<GeneratedComment[]>>;
       listCommentExamples: () => Promise<CommentExample[]>;
       removeCommentExample: (
         id: string | string[],

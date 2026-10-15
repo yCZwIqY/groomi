@@ -1,4 +1,5 @@
-﻿import fs from 'node:fs/promises';
+import { AppError } from '../../common/app-error.js';
+import fs from 'node:fs/promises';
 import type sqlite3 from 'sqlite3';
 import {
   getWorkspaceScriptDataFilePath,
@@ -12,15 +13,15 @@ import type { StoredDocumentContent } from './store-types.js';
 export function parseDocumentContent(raw: string): StoredDocumentContent {
   const value = JSON.parse(raw);
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('원고 파일 형식이 올바르지 않습니다.');
+    throw new AppError('MANUSCRIPT_FILE_INVALID');
   }
   for (const field of ['draft', 'manuscript'] as const) {
     if (value[field] !== undefined && (!value[field] || typeof value[field].content !== 'string')) {
-      throw new Error('원고 내용 형식이 올바르지 않습니다.');
+      throw new AppError('MANUSCRIPT_CONTENT_INVALID');
     }
   }
   if (value.title !== undefined && typeof value.title !== 'string') {
-    throw new Error('원고 제목 형식이 올바르지 않습니다.');
+    throw new AppError('MANUSCRIPT_TITLE_INVALID');
   }
   return value;
 }
@@ -65,10 +66,7 @@ export async function readDocumentContent(
       await fs.readFile(getWorkspaceScriptDataFilePath(workspacePath, documentId), 'utf8'),
     );
   } catch (error) {
-    throw new Error(
-      '원고 파일을 읽을 수 없습니다. 파일을 보존했습니다. 이전 저장본 또는 작업 폴더 백업으로 복구해주세요.',
-      { cause: error },
-    );
+    throw new AppError('MANUSCRIPT_READ_FAILED', { cause: error });
   }
 }
 

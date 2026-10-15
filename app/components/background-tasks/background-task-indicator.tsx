@@ -1,7 +1,10 @@
+import { getErrorMessage } from '~/lib/app-error';
+import { useTranslation } from '~/hooks/use-translation';
 import { TbCircleCheck, TbCircleX, TbLoader2 } from 'react-icons/tb';
 import { useState } from 'react';
 
 import { useBackgroundTasks } from '~/stores/use-background-tasks';
+import TaskCostUsage from './task-cost-usage';
 
 const TYPE_LABEL: Record<string, string> = {
   review: '원고 리뷰',
@@ -20,8 +23,10 @@ function formatElapsed(startedAt: number) {
 }
 
 const BackgroundTaskIndicator = () => {
+  const { t } = useTranslation();
   const tasks = useBackgroundTasks((state) => state.tasks);
   const clearFinishedTasks = useBackgroundTasks((state) => state.clearFinishedTasks);
+  const retryTask = useBackgroundTasks((state) => state.retryTask);
   const [open, setOpen] = useState(false);
 
   if (tasks.length === 0) {
@@ -80,6 +85,8 @@ const BackgroundTaskIndicator = () => {
               <div
                 className={'flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-stone-100'}
                 key={task.id}
+                data-task-id={task.id}
+                data-task-status={task.status}
               >
                 {task.status === 'running' && (
                   <TbLoader2
@@ -99,14 +106,29 @@ const BackgroundTaskIndicator = () => {
                       ? '진행 중'
                       : formatElapsed(task.finishedAt ?? task.startedAt)}
                   </div>
+                  {task.status === 'done' && task.usage && <TaskCostUsage usage={task.usage} />}
                   {task.status === 'error' && (
                     <p
                       className={
                         'mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-red-600'
                       }
                     >
-                      {task.errorMessage || '알 수 없는 오류가 발생했습니다.'}
+                      {getErrorMessage(task.errorMessage)}
                     </p>
+                  )}
+                  {task.status === 'error' && (task.type !== 'comments' || task.commentOptions) && (
+                    <button
+                      type='button'
+                      disabled={tasks.some(
+                        (candidate) =>
+                          candidate.documentPath === task.documentPath &&
+                          candidate.status === 'running',
+                      )}
+                      onClick={() => void retryTask(task.id)}
+                      className='mt-2 self-start rounded-md border border-stone-200 px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50'
+                    >
+                      {t('tasks.retry')}
+                    </button>
                   )}
                 </div>
               </div>

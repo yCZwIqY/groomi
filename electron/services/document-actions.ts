@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import { getGroupMemory } from './story-memory/group-memory.js';
 import { isMemoryStale } from './story-memory/memory-context.js';
 import path from 'node:path';
@@ -40,7 +41,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
         : nodeByPath.get(normalizedParentPath);
 
     if (parentNode && parentNode.type !== 'workspace') {
-      throw new Error('문서 아래에는 문서를 생성할 수 없습니다.');
+      throw new AppError('DOCUMENT_CHILD_NOT_ALLOWED');
     }
 
     const document: WorkspaceStoreDocument = {
@@ -103,7 +104,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('문서를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_NOT_FOUND');
     }
 
     const content = await readDocumentContent(workspacePath, node.id);
@@ -153,7 +154,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const { store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('삭제할 문서를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_DELETE_NOT_FOUND');
     }
 
     const deletedAt = nextDeletionTime([...store.groups, ...store.documents]);
@@ -178,9 +179,9 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const { node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('영구 삭제할 문서를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_PURGE_NOT_FOUND');
     }
-    if (!node.deletedAt) throw new Error('휴지통에 있는 문서만 영구 삭제할 수 있습니다.');
+    if (!node.deletedAt) throw new AppError('DOCUMENT_NOT_IN_TRASH');
 
     await context.withWorkspaceRepositories(
       workspacePath,
@@ -210,7 +211,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const { store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('복구할 문서를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_RECOVERY_NOT_FOUND');
     }
 
     const { groupsById } = buildNodeInfo(workspacePath, store);
@@ -235,7 +236,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
     const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('수정할 문서를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_UPDATE_NOT_FOUND');
     }
 
     const documentData = data.document ?? {};
@@ -253,7 +254,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
       (document: WorkspaceStoreDocument) => document.id === node.id,
     );
     if (!currentDocument) {
-      throw new Error('수정할 문서 메타데이터를 찾을 수 없습니다.');
+      throw new AppError('DOCUMENT_METADATA_NOT_FOUND');
     }
 
     const updatedAt = now();
@@ -289,7 +290,7 @@ export function createDocumentActions(context: WorkspaceServiceContext) {
   return {
     async recoverDocument(documentPath: string) {
       const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
-      if (!node || node.type !== 'document') throw new Error('복구할 문서를 찾을 수 없습니다.');
+      if (!node || node.type !== 'document') throw new AppError('DOCUMENT_RECOVERY_NOT_FOUND');
       await restorePreviousDocumentContent(workspacePath, node.id);
       return getDocument(documentPath);
     },

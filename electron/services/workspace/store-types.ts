@@ -101,6 +101,7 @@ export type WorkspaceStoreRecentVisit = {
 };
 
 export type WorkspaceStoreSettingInfo = {
+  aiOutputLanguage?: 'auto' | 'ko' | 'en';
   aiProvider?: 'ollama' | 'openrouter';
   openRouterModel?: string | null;
   selectedEmbeddingModel: string | null;

@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import { BrowserWindow } from 'electron';
 import channels from '../common/channels.cjs';
 import { parseDocumentUpdatePayload } from '../services/workspace/payloads.js';
@@ -39,7 +40,7 @@ export function registerDocumentIpcHandlers(
         detail: '마지막 수정 내용은 이전 저장본에 없을 수 있습니다. 현재 파일은 별도로 보존합니다.',
       }),
     );
-    if (confirm.response !== 1) throw new Error('복구를 취소했습니다.');
+    if (confirm.response !== 1) throw new AppError('RECOVERY_CANCELLED');
     const result = await workspaceService.recoverDocument(
       requireString(documentPath, 'documentPath'),
     );

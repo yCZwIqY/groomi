@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import CommentItem from '~/features/manuscript/document-content/comments/comment-item';
 import GenerateComment from '~/features/manuscript/document-content/comments/generate-comment';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -5,12 +6,22 @@ import { listGeneratedComments, removeGeneratedComment } from '~/lib/electron/co
 import { showToast } from '~/lib/toast-manager';
 import { StoryMemoryState } from '~/features/manuscript/story-memory/story-memory-state';
 import CommentSelectionToolbar from './comment-selection-toolbar';
+import { useBackgroundTasks } from '~/stores/use-background-tasks';
 
 interface Props {
   documentPath: string;
   documentTitle: string;
 }
 const Comments = ({ documentPath, documentTitle }: Props) => {
+  const completedTaskId = useBackgroundTasks((state) =>
+    state.tasks.reduce(
+      (latest, task) =>
+        task.documentPath === documentPath && task.type === 'comments' && task.status === 'done'
+          ? Math.max(latest, task.finishedAt ?? 0)
+          : latest,
+      0,
+    ),
+  );
   const [comments, setComments] = useState<GeneratedComment[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -64,7 +75,7 @@ const Comments = ({ documentPath, documentTitle }: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [documentPath]);
+  }, [documentPath, completedTaskId]);
 
   const handleRemove = async (ids: string[]) => {
     if (deletingRef.current || ids.length === 0) return;
@@ -78,7 +89,12 @@ const Comments = ({ documentPath, documentTitle }: Props) => {
         setSelectedIds((prev) => new Set([...prev].filter((id) => !ids.includes(id))));
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '댓글 삭제에 실패했습니다.', 'danger');
+      showToast(
+        error instanceof Error
+          ? error.message
+          : getErrorMessage('GROOMI_ERROR:COMMENT_DELETE_FAILED'),
+        'danger',
+      );
     } finally {
       deletingRef.current = false;
       setDeleting(false);

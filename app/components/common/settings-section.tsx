@@ -1,3 +1,4 @@
+import { useTranslation } from '~/hooks/use-translation';
 import { TbChevronDown } from 'react-icons/tb';
 import { useId, useState, type ReactNode } from 'react';
 
@@ -16,6 +17,7 @@ export default function SettingsSection({
   collapsible,
   children,
 }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(!collapsible);
   const contentId = useId();
 
@@ -43,7 +45,7 @@ export default function SettingsSection({
               'flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-primary-500'
             }
           >
-            {expanded ? '접기' : '펼치기'}
+            {expanded ? t('common.collapse') : t('common.expand')}
             <TbChevronDown className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
         )}

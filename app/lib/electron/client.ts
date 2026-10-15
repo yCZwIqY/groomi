@@ -1,3 +1,4 @@
+import { decodeError, LocalizedAppError } from '~/lib/app-error';
 export function getElectronMeta() {
   if (typeof window === 'undefined') {
     return null;
@@ -22,8 +23,28 @@ export function requireElectronApi() {
   const electronApi = getElectronApi();
 
   if (!electronApi) {
-    throw new Error('electronAPI is not available');
+    throw new LocalizedAppError('ELECTRON_UNAVAILABLE');
   }
 
-  return electronApi;
+  return new Proxy(
+    { ...electronApi },
+    {
+      get(target, key) {
+        const method = Reflect.get(target, key);
+        if (typeof method !== 'function') return method;
+        return (...args: unknown[]) => {
+          try {
+            const result = method.apply(target, args);
+            return result instanceof Promise
+              ? result.catch((error: unknown) => {
+                  throw decodeError(error);
+                })
+              : result;
+          } catch (error) {
+            throw decodeError(error);
+          }
+        };
+      },
+    },
+  );
 }

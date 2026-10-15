@@ -1,3 +1,4 @@
+import { getErrorMessage } from '~/lib/app-error';
 import { useEffect, useState } from 'react';
 import ModalFrame from '~/components/common/modal/modal-frame';
 
@@ -136,7 +137,7 @@ const StoryMemoryReviewModal = ({ documentPath, documentTitle, draft, onSaved }:
       setIsOpen(false);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : '회차 정보 저장에 실패했습니다.',
+        error instanceof Error ? error.message : getErrorMessage('GROOMI_ERROR:MEMORY_SAVE_FAILED'),
         'danger',
       );
     } finally {

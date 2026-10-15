@@ -37,6 +37,7 @@ export function createWorkspaceService(app: Pick<App, 'getPath'>) {
     getDocument: documentActions.getDocument,
     getStoreNodeByPath: context.getStoreNodeByPath,
     getSettingInfo: settingActions.getSettingInfo,
+    updateOutputLanguage: settingActions.updateOutputLanguage,
     updateAiSettings: settingActions.updateAiSettings,
     getTrashItems: workspaceActions.getTrashItems,
     getWorkflowInfo: workspaceActions.getWorkflowInfo,

@@ -1,3 +1,4 @@
+import { useTranslation } from '~/hooks/use-translation';
 import { TbPlus } from 'react-icons/tb';
 import HomeSection from '~/features/workroom/home-section';
 import BackupReminder from '~/features/workroom/backup-reminder';
@@ -20,6 +21,7 @@ function toTimestamp(value?: string) {
 }
 
 const Workroom = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { workspacePath } = useWorkspacePath();
   const setSelectedWorkspace = useSelectedWorkspace((state) => state.setSelectedWorkspace);
@@ -79,15 +81,14 @@ const Workroom = () => {
     <div className='mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-10'>
       <div className='flex flex-col justify-between gap-4 pb-2 sm:flex-row sm:items-end'>
         <div>
-          <h1 className='text-xl font-bold text-neutral-800'>작업실</h1>
-          <p className='mt-1 text-sm text-neutral-400'>
-            최근 작업을 빠르게 열거나 새로운 작업을 시작합니다.
-          </p>
+          <h1 className='text-xl font-bold text-neutral-800'>{t('workroom.title')}</h1>
+          <p className='mt-1 text-sm text-neutral-400'>{t('workroom.description')}</p>
         </div>
         <div>
           <AddWorkspaceButton targetPath={workspacePath}>
             <span className='flex h-9 items-center gap-2 rounded-md bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600'>
-              <TbPlus size={17} />새 작업 시작
+              <TbPlus size={17} />
+              {t('workroom.startNew')}
             </span>
           </AddWorkspaceButton>
         </div>
@@ -97,29 +98,29 @@ const Workroom = () => {
 
       <section className='grid grid-cols-2 gap-3 lg:max-w-xl'>
         <div className='ui-card px-4 py-3'>
-          <div className='text-xs text-neutral-400'>워크스페이스</div>
+          <div className='text-xs text-neutral-400'>{t('workroom.workspaceCountLabel')}</div>
           <div className='mt-1 text-xl font-bold text-neutral-700'>{workspaceCount}</div>
         </div>
         <div className='ui-card px-4 py-3'>
-          <div className='text-xs text-neutral-400'>작성 중인 문서</div>
+          <div className='text-xs text-neutral-400'>{t('workroom.documents')}</div>
           <div className='mt-1 text-xl font-bold text-neutral-700'>{documentCount}</div>
         </div>
       </section>
 
       <HomeSection
-        title='최근 작업'
-        description='마지막으로 수정한 작업부터 모았습니다.'
+        title={t('workroom.recent.title')}
+        description={t('workroom.recent.description')}
         items={recentItems}
         loading={loading}
-        emptyMessage='아직 작업한 항목이 없습니다. 첫 문서를 만들어보세요.'
+        emptyMessage={t('workroom.recent.empty')}
         onClick={openItem}
       />
       <HomeSection
-        title='최근 생성한 워크스페이스'
-        description='새롭게 만든 공간을 빠르게 확인하세요.'
+        title={t('workroom.workspaces.title')}
+        description={t('workroom.workspaces.description')}
         items={recentWorkspaces}
         loading={loading}
-        emptyMessage='생성된 워크스페이스가 없습니다.'
+        emptyMessage={t('workroom.workspaces.empty')}
         onClick={openItem}
       />
     </div>

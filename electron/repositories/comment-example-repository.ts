@@ -1,3 +1,4 @@
+import { AppError } from '../common/app-error.js';
 import crypto from 'node:crypto';
 import type sqlite3 from 'sqlite3';
 
@@ -99,7 +100,7 @@ export function createCommentExampleRepository(db: sqlite3.Database) {
       };
 
       if (!example.content) {
-        throw new Error('댓글 예시 내용이 비어 있습니다.');
+        throw new AppError('COMMENT_EXAMPLE_EMPTY');
       }
 
       await run(

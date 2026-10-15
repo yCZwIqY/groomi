@@ -1,3 +1,5 @@
+import { AppError } from '../../common/app-error.js';
+import { resolveGroupOutputLanguage } from '../story-memory/output-language.js';
 import { buildAiChapterText, toAiText } from '../ai-text.js';
 import { generateAiJson, resolveAiConfiguration } from '../ai-provider.js';
 import { serializeWorkspaceOperation } from '../workspace-operation.js';
@@ -19,7 +21,7 @@ export function parseManuscriptReview(content: string): ManuscriptReview {
   try {
     parsed = JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
   } catch {
-    throw new Error('원고 리뷰를 JSON으로 해석하지 못했습니다.');
+    throw new AppError('REVIEW_JSON_INVALID');
   }
   validateSchema(parsed, manuscriptReviewSchema);
   return parsed;
@@ -28,17 +30,13 @@ export function createReviewActions(context: WorkspaceServiceContext) {
   async function generateManuscriptReview(documentPath: string): Promise<ManuscriptReview> {
     const { model, systemPrompt, userPrompt } = await serializeWorkspaceOperation(async () => {
       const { workspacePath, store, node } = await context.getStoreNodeByPath(documentPath);
-      if (!node || node.type !== 'document')
-        throw new Error('원고 리뷰를 생성할 문서를 찾을 수 없습니다.');
+      if (!node || node.type !== 'document') throw new AppError('REVIEW_DOCUMENT_NOT_FOUND');
       const setting = await context.withWorkspaceRepositories(
         workspacePath,
         async ({ settingInfo }) => settingInfo.findSettingInfo(),
       );
       const content = await readDocumentContent(workspacePath, node.id);
-      if (!toAiText(content.manuscript?.content))
-        throw new Error(
-          '원고 리뷰를 생성할 원고 본문이 없습니다. 원고를 작성한 뒤 다시 시도해주세요. 초고는 원고 리뷰 생성에 사용되지 않습니다.',
-        );
+      if (!toAiText(content.manuscript?.content)) throw new AppError('REVIEW_MANUSCRIPT_REQUIRED');
       const knownMemory =
         getNovelType(store, node.parentId ?? null) === 'short'
           ? null
@@ -49,6 +47,13 @@ export function createReviewActions(context: WorkspaceServiceContext) {
       return {
         model: await resolveAiConfiguration(setting),
         ...buildManuscriptReviewPrompt({
+          outputLanguage: await resolveGroupOutputLanguage(
+            workspacePath,
+            store,
+            node.parentId ?? null,
+            setting.aiOutputLanguage ?? 'auto',
+            toAiText(content.manuscript?.content),
+          ),
           chapterTitle: content.title ?? node.name,
           currentText: buildAiChapterText(content, node.name),
           knownMemory,
@@ -72,11 +77,11 @@ export function createReviewActions(context: WorkspaceServiceContext) {
         if (attempt === 1) throw error;
         messages.push({
           role: 'user',
-          content: `응답 검증 실패: ${error instanceof Error ? error.message : '잘못된 형식'}. 위 입력으로 올바른 JSON을 다시 반환해주세요.`,
+          content: `Response validation failed: ${error instanceof Error ? error.message : 'Invalid format'}. Return valid JSON for the same input, preserving the specified output language.`,
         });
       }
     }
-    throw new Error('원고 리뷰 생성에 실패했습니다.');
+    throw new AppError('REVIEW_GENERATION_FAILED');
   }
   return { generateManuscriptReview };
 }

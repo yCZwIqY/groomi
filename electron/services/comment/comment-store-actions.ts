@@ -1,3 +1,4 @@
+import { AppError } from '../../common/app-error.js';
 import { run, withTransaction } from '../../db/connection.js';
 import type { DocumentCommentRow } from '../../repositories/document-comment-repository.js';
 import type { WorkspaceServiceContext } from '../workspace-service-context.js';
@@ -31,7 +32,7 @@ export function createCommentStoreActions(context: WorkspaceServiceContext) {
     const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('댓글을 조회할 문서를 찾을 수 없습니다.');
+      throw new AppError('COMMENT_READ_DOCUMENT_NOT_FOUND');
     }
 
     return context.withWorkspaceRepositories(workspacePath, async ({ documentComments }) => {
@@ -44,12 +45,12 @@ export function createCommentStoreActions(context: WorkspaceServiceContext) {
     const { workspacePath, node } = await context.getStoreNodeByPath(documentPath);
 
     if (!node || node.type !== 'document') {
-      throw new Error('댓글을 삭제할 문서를 찾을 수 없습니다.');
+      throw new AppError('COMMENT_DELETE_DOCUMENT_NOT_FOUND');
     }
 
     const ids = [...new Set(Array.isArray(commentId) ? commentId : [commentId])];
     if (ids.length === 0 || ids.some((id) => typeof id !== 'string' || !id.trim())) {
-      throw new Error('삭제할 댓글을 선택해주세요.');
+      throw new AppError('COMMENT_SELECTION_REQUIRED');
     }
     await context.withWorkspaceRepositories(workspacePath, async ({ db }) => {
       await withTransaction(db, async () => {

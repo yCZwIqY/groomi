@@ -10,6 +10,7 @@ export type SettingInfoRow = {
   selectedLLMModel: string | null;
   aiProvider?: AiProvider;
   openRouterModel?: string | null;
+  aiOutputLanguage?: 'auto' | 'ko' | 'en';
 };
 
 export type SettingInfo = {
@@ -17,6 +18,7 @@ export type SettingInfo = {
   selectedLLMModel: string | null;
   aiProvider?: AiProvider;
   openRouterModel?: string | null;
+  aiOutputLanguage?: 'auto' | 'ko' | 'en';
 };
 
 type TableInfoRow = {
@@ -34,7 +36,7 @@ export function createSettingRepository(db: sqlite3.Database) {
       await run(db, 'ALTER TABLE setting_info ADD COLUMN selectedEmbeddingModel TEXT');
     }
 
-    for (const column of ['aiProvider', 'openRouterModel']) {
+    for (const column of ['aiProvider', 'openRouterModel', 'aiOutputLanguage']) {
       if (!columnNames.has(column))
         await run(db, `ALTER TABLE setting_info ADD COLUMN ${column} TEXT`);
     }
@@ -50,7 +52,7 @@ export function createSettingRepository(db: sqlite3.Database) {
 
       const rows = await all<SettingInfoRow>(
         db,
-        'SELECT id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel FROM setting_info WHERE id = ?',
+        'SELECT id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel, aiOutputLanguage FROM setting_info WHERE id = ?',
         [DEFAULT_SETTING_ID],
       );
 
@@ -59,6 +61,10 @@ export function createSettingRepository(db: sqlite3.Database) {
         selectedLLMModel: rows[0]?.selectedLLMModel ?? null,
         aiProvider: rows[0]?.aiProvider === 'openrouter' ? 'openrouter' : 'ollama',
         openRouterModel: rows[0]?.openRouterModel ?? null,
+        aiOutputLanguage:
+          rows[0]?.aiOutputLanguage === 'ko' || rows[0]?.aiOutputLanguage === 'en'
+            ? rows[0].aiOutputLanguage
+            : 'auto',
       };
     },
 
@@ -67,13 +73,14 @@ export function createSettingRepository(db: sqlite3.Database) {
         run(
           db,
           `
-            INSERT INTO setting_info (id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO setting_info (id, selectedEmbeddingModel, selectedLLMModel, aiProvider, openRouterModel, aiOutputLanguage)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               selectedEmbeddingModel = excluded.selectedEmbeddingModel,
               selectedLLMModel = excluded.selectedLLMModel,
               aiProvider = excluded.aiProvider,
-              openRouterModel = excluded.openRouterModel
+              openRouterModel = excluded.openRouterModel,
+              aiOutputLanguage = excluded.aiOutputLanguage
           `,
           [
             DEFAULT_SETTING_ID,
@@ -81,6 +88,7 @@ export function createSettingRepository(db: sqlite3.Database) {
             settingInfo.selectedLLMModel,
             settingInfo.aiProvider ?? 'ollama',
             settingInfo.openRouterModel ?? null,
+            settingInfo.aiOutputLanguage ?? 'auto',
           ],
         ),
       );
@@ -98,6 +106,15 @@ export function createSettingRepository(db: sqlite3.Database) {
           `,
           [DEFAULT_SETTING_ID, selectedEmbeddingModel],
         ),
+      );
+    },
+
+    async updateOutputLanguage(language: 'auto' | 'ko' | 'en') {
+      await ensureSettingInfoColumns();
+      await run(
+        db,
+        'INSERT INTO setting_info (id, aiOutputLanguage) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET aiOutputLanguage = excluded.aiOutputLanguage',
+        [DEFAULT_SETTING_ID, language],
       );
     },
 

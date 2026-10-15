@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish Windows release
+    if: github.event.pull_request.merged == true
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out merged revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Determine release version
+        id: version
+        run: node scripts/prepare-release.mjs
+
+      - name: Check types
+        run: pnpm typecheck
+
+      - name: Run release safety tests
+        run: pnpm test:release
+
+      - name: Build Windows installer
+        run: pnpm dist:win --publish never
+
+      - name: Preserve installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: groomi-${{ steps.version.outputs.version }}-windows
+          path: release/*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target $env:MERGE_SHA --title $env:RELEASE_TAG --generate-notes --draft
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to create release' }
+          }
+          $installers = @(Get-ChildItem -Path release -Filter '*.exe' | ForEach-Object { $_.FullName })
+          if ($installers.Count -eq 0) { throw 'Installer not found' }
+          gh release upload $env:RELEASE_TAG @installers --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload installer' }
+          gh release edit $env:RELEASE_TAG --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish release' }

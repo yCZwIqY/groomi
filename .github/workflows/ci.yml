@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -42,6 +40,9 @@ jobs:
 
       - name: Run release safety tests
         run: pnpm test:release
+
+      - name: Test release versioning
+        run: node --test tests/prepare-release.test.mjs
 
       - name: Build application
         run: pnpm build
